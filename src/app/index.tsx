@@ -185,12 +185,12 @@ const editorActions = useMemo(() => [
   {
     label: 'Run',
     onPress: () => {
-      const result = runSim(() => {});
+      const result = runSim();
       if ('error' in result) {
         setOutput(`Runtime error:\n${result.error}`);
       } else {
         setRegisters(result.registers);
-        setOutput('Program finished.');
+        setOutput(result.output || 'Program finished.');
       }
     },
   },
@@ -202,7 +202,7 @@ const editorActions = useMemo(() => [
         setOutput(`Step error:\n${result.error}`);
       } else {
         setRegisters(result.registers);
-        setOutput(`PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
+        setOutput(result.output || `PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
       }
     },
   },
