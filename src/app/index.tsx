@@ -119,13 +119,12 @@ msg: .asciiz "Hello, WIMPS!"
 
 .text
 main:
-  li $v0, 4
-  la $a0, msg
-  syscall
+    li $v0, 4
+    la $a0, msg
+    syscall
 
-  li $v0, 10
-  syscall
-`;
+    li $v0, 10
+    syscall`;
 
 const buildInitialRegisters = (): RegisterValue[] => {
   const names = [
@@ -191,7 +190,6 @@ const editorActions = useMemo(() => [
         setOutput(`Runtime error:\n${result.error}`);
       } else {
         setRegisters(result.registers);
-        setActiveLine(null); // Clear highlight when program finishes
         setOutput(result.output || 'Program finished.');
       }
     },
@@ -204,8 +202,6 @@ const editorActions = useMemo(() => [
         setOutput(`Step error:\n${result.error}`);
       } else {
         setRegisters(result.registers);
-        // CRITICAL: Update the highlight state
-        setActiveLine(getActiveLineIndex()); 
         setOutput(result.output || `PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
       }
     },
@@ -215,7 +211,6 @@ const editorActions = useMemo(() => [
     onPress: () => {
       resetSim();
       setRegisters(buildInitialRegisters());
-      setActiveLine(null); // Clear highlight
       setOutput('Reset.');
     },
   },
@@ -319,7 +314,6 @@ const editorActions = useMemo(() => [
                     setCode={setCode} 
                     actions={editorActions} 
                     theme={activeTheme} 
-                    activeLine={activeLine} // <--- Added this
                   />
                 </View>
               </View>
@@ -365,7 +359,6 @@ const editorActions = useMemo(() => [
                 setCode={setCode} 
                 actions={editorActions} 
                 theme={activeTheme} 
-                activeLine={activeLine} // <--- Added this
               />
             )}
 
