@@ -8,6 +8,8 @@ import {
   View,
 } from 'react-native';
 
+import type { Theme } from '../theme/themes';
+
 interface EditorAction {
   label: string;
   onPress: () => void;
@@ -17,9 +19,11 @@ interface CodeEditorProps {
   code: string;
   setCode: (value: string) => void;
   actions: EditorAction[];
+  theme: Theme;
 }
 
-export function CodeEditor({ code, setCode, actions }: CodeEditorProps) {
+export function CodeEditor({ code, setCode, actions, theme }: CodeEditorProps) {
+  const styles = getThemeStyles(theme); 
   return (
     <View style={styles.wrapper}>
       <View style={styles.header}>
@@ -56,34 +60,35 @@ export function CodeEditor({ code, setCode, actions }: CodeEditorProps) {
           textAlignVertical="top"
           style={styles.editorInput}
           placeholder="Write MIPS code here..."
-          placeholderTextColor="#64748b"
+          placeholderTextColor={theme.subText}
         />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const getThemeStyles = (theme: Theme) =>
+  StyleSheet.create({
   wrapper: {
     flex: 1,
     minHeight: 400,
-    backgroundColor: '#111827',
+    backgroundColor: theme.bg,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: theme.border,
   },
   header: {
     gap: 12,
     marginBottom: 12,
   },
   title: {
-    color: '#f8fafc',
+    color: theme.text,
     fontSize: 18,
     fontWeight: '700',
   },
   subtitle: {
-    color: '#94a3b8',
+    color: theme.subText,
     fontSize: 13,
     marginTop: 2,
   },
@@ -92,30 +97,31 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   actionButton: {
-    backgroundColor: '#1e293b',
+    backgroundColor: theme.btnBg,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: theme.border,
   },
   actionButtonText: {
-    color: '#e2e8f0',
+    color: theme.text,
     fontWeight: '600',
   },
   editorShell: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: theme.bg,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: theme.border,
   },
   editorInput: {
+    backgroundColor: theme.card,
     flex: 1,
     minHeight: 320,
     padding: 16,
-    color: '#e5e7eb',
+    color: theme.text,
     fontSize: 15,
     lineHeight: 22,
     fontFamily: 'monospace',

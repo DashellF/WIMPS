@@ -18,43 +18,24 @@ import {
 import { CodeEditor } from '../components/CodeEditor';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 
+// 1. Theme Configuration
+import type { Theme } from '../theme/themes';
+import { THEMES } from '../theme/themes';
+console.log('THEMES:', THEMES);
+
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// 1. Theme Configuration
-const THEMES = {
-  dark: {
-    bg: '#0b1020',
-    text: '#f8fafc',
-    subText: '#94a3b8',
-    card: '#111827',
-    border: '#1f2937',
-    resizer: '#334155',
-    tabActive: '#1e293b',
-    tabInactive: '#111827',
-    consoleText: '#cbd5e1',
-    btnBg: '#111827',
-    statusBarStyle: 'light-content',
-  },
-  light: {
-    bg: '#f1f5f9',
-    text: '#0f172a',
-    subText: '#475569',
-    card: '#ffffff',
-    border: '#cbd5e1',
-    resizer: '#94a3b8',
-    tabActive: '#e2e8f0',
-    tabInactive: '#ffffff',
-    consoleText: '#334155',
-    btnBg: '#ffffff',
-    statusBarStyle: 'dark-content',
-  },
-};
 
 // 2. Custom Animated Switch Component
-const ThemeSwitch = ({ isDark, toggle }) => {
+interface ThemeSwitchProps {
+  isDark: boolean;
+  toggle: () => void;
+}
+
+const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
   const slideAnim = useRef(new Animated.Value(isDark ? 1 : 0)).current;
 
   useEffect(() => {
@@ -280,7 +261,7 @@ export default function IdeScreen() {
               {/* Top half: Editor */}
               <View style={{ flex: editorHeightPct, paddingBottom: 4 }}>
                 <View style={{ flex: 1, overflow: 'hidden' }}>
-                  <CodeEditor code={code} setCode={setCode} actions={editorActions} isDarkMode={isDarkMode} />
+                  <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
                 </View>
               </View>
 
@@ -314,16 +295,16 @@ export default function IdeScreen() {
             )}
 
             <View style={[styles.sideColumn, { width: `${100 - leftPanelPct}%` }]}>
-              <RegisterPanel registers={registers} isDarkMode={isDarkMode} />
+              <RegisterPanel registers={registers} theme={activeTheme} />
             </View>
           </View>
         ) : (
           <View style={styles.mobileContent}>
             {activeTab === 'editor' && (
-              <CodeEditor code={code} setCode={setCode} actions={editorActions} isDarkMode={isDarkMode} />
+              <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
             )}
 
-            {activeTab === 'registers' && <RegisterPanel registers={registers} isDarkMode={isDarkMode} />}
+            {activeTab === 'registers' && <RegisterPanel registers={registers} theme={activeTheme} />}
 
             {activeTab === 'console' && (
               <View style={tStyles.consoleCard}>
@@ -340,7 +321,8 @@ export default function IdeScreen() {
   );
 }
 
-const getThemeStyles = (theme) => StyleSheet.create({
+const getThemeStyles = (theme: Theme) =>
+  StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.bg,
@@ -461,7 +443,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
     // @ts-ignore
-    cursor: 'col-resize', 
+    cursor: 'col-resize' as ViewStyle, 
   },
   resizerHorizontal: {
     height: 16,
@@ -469,7 +451,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
     // @ts-ignore
-    cursor: 'row-resize',
+    cursor: 'row-resize' as ViewStyle,
   },
   sideColumn: {
     paddingLeft: 8,
