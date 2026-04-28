@@ -234,8 +234,8 @@ export default function IdeScreen() {
             <Image 
               source={
                 isDarkMode 
-                  ? require('/workspaces/WIMPS/assets/images/WIMPS_dark.png') 
-                  : require('/workspaces/WIMPS/assets/images/WIMPS_light.png')
+                  ? require('../../assets/images/WIMPS_dark.png') 
+                  : require('../../assets/images/WIMPS_light.png')
               } 
               style={styles.logo} 
             />
