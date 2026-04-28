@@ -1,161 +1,149 @@
 import React, { useState } from 'react';
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from 'react-native';
-
+import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { Theme } from '../theme/themes';
 
+const TAB = '    ';
 
-const TAB = '    '; // 2 spaces, or '    ' for 4
-
-interface EditorAction {
-  label: string;
-  onPress: () => void;
-}
-
-interface CodeEditorProps {
-  code: string;
-  setCode: (value: string) => void;
-  actions: EditorAction[];
-  theme: Theme;
-}
-
-
-export function CodeEditor({ code, setCode, actions, theme }: CodeEditorProps) {
-  const styles = getThemeStyles(theme); 
+export function CodeEditor({ code, setCode, actions, theme }: any) {
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const styles = getThemeStyles(theme);
+
+  const lines = code.split('\n');
+  const lineCount = lines.length;
+
+  const handleKeyPress = (e: any) => {
+    const { start, end } = selection;
+
+    if (Platform.OS === 'web' && e.nativeEvent.key === 'Tab') {
+      e.preventDefault();
+      const newText = code.slice(0, start) + TAB + code.slice(end);
+      setCode(newText);
+      const next = start + TAB.length;
+      setSelection({ start: next, end: next });
+    }
+
+    if (Platform.OS === 'web' && e.nativeEvent.key === 'Backspace' && (e.nativeEvent.ctrlKey || e.nativeEvent.metaKey)) {
+      if (start !== end) return;
+      const textBeforeCursor = code.slice(0, start);
+      const lastNewlineIndex = textBeforeCursor.lastIndexOf('\n');
+      const currentLineBeforeCursor = textBeforeCursor.slice(lastNewlineIndex + 1);
+
+      if (currentLineBeforeCursor.length > 0) {
+        e.preventDefault();
+        const match = currentLineBeforeCursor.match(/(\s+||[^\s\w]+||\w+)$/);
+        const deleteCount = match ? match[0].length : 0;
+        const newText = code.slice(0, start - deleteCount) + code.slice(end);
+        setCode(newText);
+        const next = start - deleteCount;
+        setSelection({ start: next, end: next });
+      }
+    }
+  };
+
   return (
     <View style={styles.wrapper}>
+      {/* Header unchanged */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Editor</Text>
           <Text style={styles.subtitle}>MIPS assembly source</Text>
         </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.actionsRow}
-        >
-          {actions.map((action) => (
-            <TouchableOpacity
-              key={action.label}
-              style={styles.actionButton}
-              onPress={action.onPress}
-            >
-              <Text style={styles.actionButtonText}>{action.label}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionsRow}>
+          {actions.map((a: any) => (
+            <TouchableOpacity key={a.label} style={styles.actionButton} onPress={a.onPress}>
+              <Text style={styles.actionButtonText}>{a.label}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
+      {/* The Shell is the outer container. 
+        We use a ScrollView as the primary container for the editor body.
+      */}
       <View style={styles.editorShell}>
-        <TextInput
-          value={code}
-          onChangeText={setCode}
-          multiline
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          textAlignVertical="top"
-          style={styles.editorInput}
-          placeholder="Write MIPS code here..."
-          placeholderTextColor={theme.subText}
-          selection={selection}
-          onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
-          // Use onKeyPress instead of onKeyDown for better Web compatibility
-          onKeyPress={(e) => {
-            if (Platform.OS === 'web' && e.nativeEvent.key === 'Tab') {
-              // 1. Prevent default tab-switch behavior
-              e.preventDefault();
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          showsVerticalScrollIndicator={true}
+        >
+          {/* THE GUTTER */}
+          <View style={styles.gutter}>
+            {Array.from({ length: lineCount }).map((_, i) => (
+              <Text key={i} style={styles.lineNumber}>
+                {i + 1}
+              </Text>
+            ))}
+          </View>
 
-              const { start, end } = selection;
-              
-              // 2. Calculate new string
-              const newText = code.slice(0, start) + TAB + code.slice(end);
-              const newCursorPos = start + TAB.length;
-
-              // 3. Update text state immediately
-              setCode(newText);
-
-              // 4. Update selection state immediately 
-              // By not using setTimeout, we tell React the new state AND 
-              // the new selection in the same render cycle.
-              setSelection({
-                start: newCursorPos,
-                end: newCursorPos,
-              });
-            }
-          }}
-        />
+          {/* THE INPUT */}
+          <TextInput
+            value={code}
+            onChangeText={setCode}
+            multiline
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            // scrollEnabled={false} is critical here because the parent ScrollView 
+            // handles the actual scrolling logic on Web/Mobile.
+            scrollEnabled={false} 
+            style={styles.editorInput}
+            selection={selection}
+            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+            onKeyPress={handleKeyPress}
+          />
+        </ScrollView>
       </View>
     </View>
   );
 }
 
-const getThemeStyles = (theme: Theme) =>
-  StyleSheet.create({
-  wrapper: {
-    flex: 1,
-    minHeight: 400,
-    backgroundColor: theme.bg,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
+const getThemeStyles = (theme: Theme) => StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: theme.bg, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.border },
+  header: { gap: 12, marginBottom: 12 },
+  title: { color: theme.text, fontSize: 18, fontWeight: '700' },
+  subtitle: { color: theme.subText, fontSize: 13 },
+  actionsRow: { gap: 8 },
+  actionButton: { backgroundColor: theme.btnBg, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.border },
+  actionButtonText: { color: theme.text, fontWeight: '600' },
+  
+  editorShell: { 
+    flex: 1, 
+    backgroundColor: theme.card, 
+    borderRadius: 12, 
+    overflow: 'hidden', 
+    borderWidth: 1, 
     borderColor: theme.border,
   },
-  header: {
-    gap: 12,
-    marginBottom: 12,
+  scrollContent: {
+    flexDirection: 'row',
+    minHeight: '100%',
   },
-  title: {
-    color: theme.text,
-    fontSize: 18,
-    fontWeight: '700',
+  gutter: {
+    width: 45,
+    backgroundColor: theme.bg,
+    paddingTop: 16,
+    borderRightWidth: 1,
+    borderRightColor: theme.border,
+    // Ensure gutter height matches the input height
+    paddingBottom: 100, 
   },
-  subtitle: {
+  lineNumber: {
     color: theme.subText,
-    fontSize: 13,
-    marginTop: 2,
-  },
-  actionsRow: {
-    gap: 8,
-    paddingRight: 12,
-  },
-  actionButton: {
-    backgroundColor: theme.btnBg,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  actionButtonText: {
-    color: theme.text,
-    fontWeight: '600',
-  },
-  editorShell: {
-    flex: 1,
-    backgroundColor: theme.bg,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: theme.border,
+    fontSize: 12,
+    fontFamily: 'monospace',
+    lineHeight: 22, // Sync with Input
+    textAlign: 'right',
+    paddingRight: 10,
   },
   editorInput: {
-    backgroundColor: theme.card,
     flex: 1,
-    minHeight: 320,
     padding: 16,
-    color: theme.text,
+    paddingTop: 16,
     fontSize: 15,
     lineHeight: 22,
     fontFamily: 'monospace',
+    color: theme.text,
+    textAlignVertical: 'top',
+    minHeight: '100%'
   },
 });
