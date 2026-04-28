@@ -22,19 +22,32 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
       setSelection({ start: next, end: next });
     }
 
-    if (Platform.OS === 'web' && e.nativeEvent.key === 'Backspace' && (e.nativeEvent.ctrlKey || e.nativeEvent.metaKey)) {
-      if (start !== end) return;
+    // 2. Handle Ctrl + Backspace
+    if (
+      Platform.OS === 'web' &&
+      e.nativeEvent.key === 'Backspace' &&
+      (e.nativeEvent.ctrlKey || e.nativeEvent.metaKey)
+    ) {
+      if (start !== end) return; 
+
       const textBeforeCursor = code.slice(0, start);
       const lastNewlineIndex = textBeforeCursor.lastIndexOf('\n');
       const currentLineBeforeCursor = textBeforeCursor.slice(lastNewlineIndex + 1);
 
       if (currentLineBeforeCursor.length > 0) {
+        // CASE A: Content exists on this line, delete the "chunk"
         e.preventDefault();
         const match = currentLineBeforeCursor.match(/(\s+||[^\s\w]+||\w+)$/);
         const deleteCount = match ? match[0].length : 0;
         const newText = code.slice(0, start - deleteCount) + code.slice(end);
         setCode(newText);
         const next = start - deleteCount;
+        setSelection({ start: next, end: next });
+      } else if (start > 0) {
+        // CASE B: Line is empty, move cursor up to the previous line (IDE style)
+        e.preventDefault();
+        // The new position is simply just before the current newline character
+        const next = start - 1; 
         setSelection({ start: next, end: next });
       }
     }
