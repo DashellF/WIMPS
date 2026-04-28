@@ -331,8 +331,12 @@ const editorActions = useMemo(() => [
               <View style={{ flex: 100 - editorHeightPct, paddingTop: 4 }}>
                 <View style={[tStyles.consoleCard, { flex: 1, minHeight: 0 }]}>
                   <Text style={tStyles.panelTitle}>Console Output</Text>
-                  <ScrollView style={styles.consoleOutput}>
+                  <ScrollView style={styles.consoleOutput}
+                    showsVerticalScrollIndicator={false}
+                    showsHorizontalScrollIndicator={false}
+                  >
                     <Text style={tStyles.consoleText}>{output}</Text>
+                    
                   </ScrollView>
                 </View>
               </View>
@@ -367,7 +371,10 @@ const editorActions = useMemo(() => [
             {activeTab === 'console' && (
               <View style={tStyles.consoleCard}>
                 <Text style={tStyles.panelTitle}>Console Output</Text>
-                <ScrollView style={styles.consoleOutput}>
+                <ScrollView style={styles.consoleOutput}
+                  showsVerticalScrollIndicator={false}
+                  showsHorizontalScrollIndicator={false}
+                >
                   <Text style={tStyles.consoleText}>{output}</Text>
                 </ScrollView>
               </View>
@@ -456,6 +463,7 @@ const getThemeStyles = (theme: Theme) =>
 });
 
 const styles = StyleSheet.create({
+
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',

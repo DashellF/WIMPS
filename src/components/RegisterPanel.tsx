@@ -60,7 +60,10 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
         <Text style={[styles.headerCell, styles.valueColumn]}>Hex</Text>
       </View>
 
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+      <ScrollView style={styles.list}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      >
         {filteredRegisters.map((register) => (
           <View key={register.name} style={styles.row}>
             <View style={styles.nameColumn}>

@@ -78,7 +78,7 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
         <ScrollView 
           contentContainerStyle={styles.scrollContent}
           bounces={false}
-          showsVerticalScrollIndicator={true}
+          showsVerticalScrollIndicator={false}
         >
           {/* THE GUTTER */}
           <View style={styles.gutter}>
