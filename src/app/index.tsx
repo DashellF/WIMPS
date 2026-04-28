@@ -249,6 +249,7 @@ const editorActions = useMemo(() => [
   );
 
   const docsPress = () => window.open('/docs')
+  const loginPress = () => window.open('/login')
 
   return (
     <SafeAreaView style={tStyles.safeArea}>
@@ -272,7 +273,7 @@ const editorActions = useMemo(() => [
             <TouchableOpacity style={tStyles.secondaryButton} onPress={(docsPress)}>
               <Text style={tStyles.secondaryButtonText}>Docs</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryButton}>
+            <TouchableOpacity style={styles.primaryButton} onPress={(loginPress)}>
               <Text style={styles.primaryButtonText}>Login</Text>
             </TouchableOpacity>
           </View>
