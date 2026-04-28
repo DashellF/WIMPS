@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -8,9 +8,128 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  PanResponder,
+  Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
+  Image,
 } from 'react-native';
 import { CodeEditor } from '../components/CodeEditor';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// 1. Theme Configuration
+const THEMES = {
+  dark: {
+    bg: '#0b1020',
+    text: '#f8fafc',
+    subText: '#94a3b8',
+    card: '#111827',
+    border: '#1f2937',
+    resizer: '#334155',
+    tabActive: '#1e293b',
+    tabInactive: '#111827',
+    consoleText: '#cbd5e1',
+    btnBg: '#111827',
+    statusBarStyle: 'light-content',
+  },
+  light: {
+    bg: '#f1f5f9',
+    text: '#0f172a',
+    subText: '#475569',
+    card: '#ffffff',
+    border: '#cbd5e1',
+    resizer: '#94a3b8',
+    tabActive: '#e2e8f0',
+    tabInactive: '#ffffff',
+    consoleText: '#334155',
+    btnBg: '#ffffff',
+    statusBarStyle: 'dark-content',
+  },
+};
+
+// 2. Custom Animated Switch Component
+const ThemeSwitch = ({ isDark, toggle }) => {
+  const slideAnim = useRef(new Animated.Value(isDark ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: isDark ? 1 : 0,
+      duration: 150, 
+      useNativeDriver: false, 
+    }).start();
+  }, [isDark]);
+
+  const thumbPosition = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [4, 30], 
+  });
+
+  const trackBg = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#ffffff', '#2563eb'], 
+  });
+
+  const trackBorder = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#cbd5e1', '#2563eb'], 
+  });
+
+  const thumbBg = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#94a3b8', '#ffffff'], 
+  });
+
+  const iconColor = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#ffffff', '#2563eb'], 
+  });
+
+  return (
+    <TouchableOpacity activeOpacity={0.8} onPress={toggle}>
+      <Animated.View
+        style={{
+          width: 58,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: trackBg,
+          borderColor: trackBorder,
+          borderWidth: 2,
+          justifyContent: 'center',
+        }}
+      >
+        <Animated.View
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: thumbBg,
+            transform: [{ translateX: thumbPosition }],
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Animated.Text
+            style={{
+              color: iconColor,
+              fontSize: 12,
+              fontWeight: 'bold',
+              lineHeight: 14,
+              paddingLeft: isDark ? 1 : 0,
+            }}
+          >
+            {isDark ? '☾' : '☼'}
+          </Animated.Text>
+        </Animated.View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
 
 const starterProgram = `.data
 msg: .asciiz "Hello, WIMPS!"
@@ -27,92 +146,105 @@ main:
 
 const buildInitialRegisters = (): RegisterValue[] => {
   const names = [
-    '$zero',
-    '$at',
-    '$v0',
-    '$v1',
-    '$a0',
-    '$a1',
-    '$a2',
-    '$a3',
-    '$t0',
-    '$t1',
-    '$t2',
-    '$t3',
-    '$t4',
-    '$t5',
-    '$t6',
-    '$t7',
-    '$s0',
-    '$s1',
-    '$s2',
-    '$s3',
-    '$s4',
-    '$s5',
-    '$s6',
-    '$s7',
-    '$t8',
-    '$t9',
-    '$k0',
-    '$k1',
-    '$gp',
-    '$sp',
-    '$fp',
-    '$ra',
+    '$zero', '$at', '$v0', '$v1', '$a0', '$a1', '$a2', '$a3',
+    '$t0', '$t1', '$t2', '$t3', '$t4', '$t5', '$t6', '$t7',
+    '$s0', '$s1', '$s2', '$s3', '$s4', '$s5', '$s6', '$s7',
+    '$t8', '$t9', '$k0', '$k1', '$gp', '$sp', '$fp', '$ra',
   ];
 
   return names.map((name, index) => ({
     name,
     number: index,
     hexValue: '0x00000000',
-    decimalValue: '0',
   }));
 };
 
 export default function IdeScreen() {
-  const { width } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const isWide = width >= 1000;
 
   const [code, setCode] = useState(starterProgram);
   const [registers] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('Program output will appear here.');
   const [activeTab, setActiveTab] = useState<'editor' | 'registers' | 'console'>('editor');
+  
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  const [leftPanelPct, setLeftPanelPct] = useState(68);
+  const [editorHeightPct, setEditorHeightPct] = useState(65);
+
+  const toggleTheme = () => {
+    LayoutAnimation.configureNext(
+      LayoutAnimation.create(150, 'easeInEaseOut', 'opacity')
+    );
+    setIsDarkMode((prev) => !prev);
+  };
+
+  const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
+  const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
   const editorActions = useMemo(
     () => [
-      {
-        label: 'Assemble',
-        onPress: () => setOutput('Assemble clicked. Hook MARS-based assembler here.'),
-      },
-      {
-        label: 'Run',
-        onPress: () => setOutput('Run clicked. Hook simulator execution here.'),
-      },
-      {
-        label: 'Step',
-        onPress: () => setOutput('Step clicked. Hook single-step execution here.'),
-      },
-      {
-        label: 'Reset',
-        onPress: () => setOutput('Reset clicked. Reset registers, memory, and output here.'),
-      },
+      { label: 'Assemble', onPress: () => setOutput('Assemble clicked.') },
+      { label: 'Run', onPress: () => setOutput('Run clicked.') },
+      { label: 'Step', onPress: () => setOutput('Step clicked.') },
+      { label: 'Reset', onPress: () => setOutput('Reset clicked.') },
     ],
     []
   );
 
+  const panResponderHorizontal = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderMove: (evt, gestureState) => {
+          const newPct = ((gestureState.moveX - 16) / (width - 32)) * 100;
+          if (newPct > 20 && newPct < 80) {
+            setLeftPanelPct(newPct);
+          }
+        },
+      }),
+    [width]
+  );
+
+  const panResponderVertical = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderMove: (evt, gestureState) => {
+          const topOffset = 100;
+          const availableHeight = height - topOffset - 32;
+          const newPct = ((gestureState.moveY - topOffset) / availableHeight) * 100;
+          
+          if (newPct >= 35 && newPct <= 80) {
+            setEditorHeightPct(newPct);
+          }
+        },
+      }),
+    [height]
+  );
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.container}>
+    <SafeAreaView style={tStyles.safeArea}>
+      <StatusBar barStyle={activeTheme.statusBarStyle as any} />
+      <View style={tStyles.container}>
         <View style={styles.topBar}>
-          <View>
-            <Text style={styles.title}>WIMPS IDE</Text>
-            <Text style={styles.subtitle}>Web-first MIPS simulator UI starter</Text>
+          <View style={isWide ? styles.titleGroupWeb : undefined}>
+            {/* Added dynamic logo based on theme */}
+            <Image 
+              source={
+                isDarkMode 
+                  ? require('/workspaces/WIMPS/assets/images/WIMPS_dark.png') 
+                  : require('/workspaces/WIMPS/assets/images/WIMPS_light.png')
+              } 
+              style={styles.logo} 
+            />
           </View>
 
           <View style={styles.topBarActions}>
-            <TouchableOpacity style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Docs</Text>
+            <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
+            <TouchableOpacity style={tStyles.secondaryButton}>
+              <Text style={tStyles.secondaryButtonText}>Docs</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Login</Text>
@@ -121,17 +253,17 @@ export default function IdeScreen() {
         </View>
 
         {!isWide && (
-          <View style={styles.mobileTabs}>
+          <View style={tStyles.mobileTabs}>
             {(['editor', 'registers', 'console'] as const).map((tab) => (
               <TouchableOpacity
                 key={tab}
-                style={[styles.mobileTab, activeTab === tab && styles.mobileTabActive]}
+                style={[styles.mobileTab, activeTab === tab && tStyles.mobileTabActive]}
                 onPress={() => setActiveTab(tab)}
               >
                 <Text
                   style={[
-                    styles.mobileTabText,
-                    activeTab === tab && styles.mobileTabTextActive,
+                    tStyles.mobileTabText,
+                    activeTab === tab && tStyles.mobileTabTextActive,
                   ]}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -143,34 +275,61 @@ export default function IdeScreen() {
 
         {isWide ? (
           <View style={styles.desktopContent}>
-            <View style={styles.editorColumn}>
-              <CodeEditor code={code} setCode={setCode} actions={editorActions} />
+            <View style={[styles.editorColumn, { width: `${leftPanelPct}%` }]}>
+              
+              {/* Top half: Editor */}
+              <View style={{ flex: editorHeightPct, paddingBottom: 4 }}>
+                <View style={{ flex: 1, overflow: 'hidden' }}>
+                  <CodeEditor code={code} setCode={setCode} actions={editorActions} isDarkMode={isDarkMode} />
+                </View>
+              </View>
 
-              <View style={styles.consoleCard}>
-                <Text style={styles.panelTitle}>Console Output</Text>
-                <ScrollView style={styles.consoleOutput}>
-                  <Text style={styles.consoleText}>{output}</Text>
-                </ScrollView>
+              {/* Draggable Vertical Divider */}
+              {Platform.OS === 'web' ? (
+                <View {...panResponderVertical.panHandlers} style={styles.resizerHorizontal}>
+                  <View style={tStyles.resizerHorizontalLine} />
+                </View>
+              ) : (
+                <View style={{ height: 16 }} />
+              )}
+
+              {/* Bottom half: Console */}
+              <View style={{ flex: 100 - editorHeightPct, paddingTop: 4 }}>
+                <View style={[tStyles.consoleCard, { flex: 1, minHeight: 0 }]}>
+                  <Text style={tStyles.panelTitle}>Console Output</Text>
+                  <ScrollView style={styles.consoleOutput}>
+                    <Text style={tStyles.consoleText}>{output}</Text>
+                  </ScrollView>
+                </View>
               </View>
             </View>
 
-            <View style={styles.sideColumn}>
-              <RegisterPanel registers={registers} />
+            {/* Draggable Horizontal Divider */}
+            {Platform.OS === 'web' ? (
+              <View {...panResponderHorizontal.panHandlers} style={styles.resizerVertical}>
+                <View style={tStyles.resizerVerticalLine} />
+              </View>
+            ) : (
+              <View style={{ width: 16 }} />
+            )}
+
+            <View style={[styles.sideColumn, { width: `${100 - leftPanelPct}%` }]}>
+              <RegisterPanel registers={registers} isDarkMode={isDarkMode} />
             </View>
           </View>
         ) : (
           <View style={styles.mobileContent}>
             {activeTab === 'editor' && (
-              <CodeEditor code={code} setCode={setCode} actions={editorActions} />
+              <CodeEditor code={code} setCode={setCode} actions={editorActions} isDarkMode={isDarkMode} />
             )}
 
-            {activeTab === 'registers' && <RegisterPanel registers={registers} />}
+            {activeTab === 'registers' && <RegisterPanel registers={registers} isDarkMode={isDarkMode} />}
 
             {activeTab === 'console' && (
-              <View style={styles.consoleCard}>
-                <Text style={styles.panelTitle}>Console Output</Text>
+              <View style={tStyles.consoleCard}>
+                <Text style={tStyles.panelTitle}>Console Output</Text>
                 <ScrollView style={styles.consoleOutput}>
-                  <Text style={styles.consoleText}>{output}</Text>
+                  <Text style={tStyles.consoleText}>{output}</Text>
                 </ScrollView>
               </View>
             )}
@@ -181,18 +340,82 @@ export default function IdeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getThemeStyles = (theme) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0b1020',
+    backgroundColor: theme.bg,
   },
   container: {
     flex: 1,
-    backgroundColor: '#0b1020',
+    backgroundColor: theme.bg,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
   },
+  secondaryButton: {
+    borderWidth: 1,
+    borderColor: theme.border,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: theme.btnBg,
+  },
+  secondaryButtonText: {
+    color: theme.text,
+    fontWeight: '600',
+  },
+  mobileTabs: {
+    flexDirection: 'row',
+    backgroundColor: theme.tabInactive,
+    borderRadius: 12,
+    padding: 6,
+    marginBottom: 12,
+    gap: 6,
+  },
+  mobileTabActive: {
+    backgroundColor: theme.tabActive,
+  },
+  mobileTabText: {
+    color: theme.subText,
+    fontWeight: '600',
+  },
+  mobileTabTextActive: {
+    color: theme.text,
+  },
+  consoleCard: {
+    flex: 1,
+    backgroundColor: theme.card,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  panelTitle: {
+    color: theme.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  consoleText: {
+    color: theme.consoleText,
+    fontFamily: 'monospace',
+    lineHeight: 20,
+  },
+  resizerVerticalLine: {
+    width: 4,
+    height: '20%',
+    backgroundColor: theme.resizer,
+    borderRadius: 2,
+  },
+  resizerHorizontalLine: {
+    height: 4,
+    width: '10%',
+    backgroundColor: theme.resizer,
+    borderRadius: 2,
+  },
+});
+
+const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -201,19 +424,19 @@ const styles = StyleSheet.create({
     gap: 12,
     flexWrap: 'wrap',
   },
-  title: {
-    color: '#f8fafc',
-    fontSize: 28,
-    fontWeight: '700',
+  titleGroupWeb: {
+    marginLeft: 40,
   },
-  subtitle: {
-    color: '#94a3b8',
-    fontSize: 14,
-    marginTop: 4,
+  // Added styling for the logo to ensure it scales correctly
+  logo: {
+    width: 240,
+    height: 44,
+    resizeMode: 'contain',
   },
   topBarActions: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
+    alignItems: 'center',
   },
   primaryButton: {
     backgroundColor: '#2563eb',
@@ -225,40 +448,34 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
   },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: '#334155',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#111827',
-  },
-  secondaryButtonText: {
-    color: '#e2e8f0',
-    fontWeight: '600',
-  },
   desktopContent: {
     flex: 1,
     flexDirection: 'row',
-    gap: 16,
   },
   editorColumn: {
-    flex: 2.2,
-    gap: 16,
+    paddingRight: 8,
+  },
+  resizerVertical: {
+    width: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    // @ts-ignore
+    cursor: 'col-resize', 
+  },
+  resizerHorizontal: {
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    // @ts-ignore
+    cursor: 'row-resize',
   },
   sideColumn: {
-    flex: 1,
+    paddingLeft: 8,
   },
   mobileContent: {
     flex: 1,
-  },
-  mobileTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    padding: 6,
-    marginBottom: 12,
-    gap: 6,
   },
   mobileTab: {
     flex: 1,
@@ -266,37 +483,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  mobileTabActive: {
-    backgroundColor: '#1e293b',
-  },
-  mobileTabText: {
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  mobileTabTextActive: {
-    color: '#f8fafc',
-  },
-  consoleCard: {
-    flex: 1,
-    minHeight: 160,
-    backgroundColor: '#111827',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  panelTitle: {
-    color: '#f8fafc',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
   consoleOutput: {
     flex: 1,
-  },
-  consoleText: {
-    color: '#cbd5e1',
-    fontFamily: 'monospace',
-    lineHeight: 20,
   },
 });
