@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import type { Theme } from '../theme/themes';
@@ -97,7 +97,7 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
 
 // ── DocsScreen ───────────────────────────────────────────────────────────────
 export default function DocsScreen() {
-  const idePress = () => window.open('/')
+  const idePress = () => window.open('/', '_self')
   const [isDarkMode, setIsDarkMode] = useState(true);
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);

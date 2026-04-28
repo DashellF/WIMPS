@@ -248,8 +248,8 @@ const editorActions = useMemo(() => [
     [height]
   );
 
-  const docsPress = () => window.open('/docs')
-  const loginPress = () => window.open('/login')
+  const docsPress = () => window.open('/docs', '_self')
+  const loginPress = () => window.open('/login', '_self')
 
   return (
     <SafeAreaView style={tStyles.safeArea}>
