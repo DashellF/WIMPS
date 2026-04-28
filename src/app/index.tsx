@@ -16,6 +16,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CodeEditor } from '../components/CodeEditor';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { assemble, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
@@ -150,6 +151,7 @@ export default function IdeScreen() {
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('Program output will appear here.');
   const [activeTab, setActiveTab] = useState<'editor' | 'registers' | 'console'>('editor');
+  const STORAGE_KEY = '@mips_editor_code';
 
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -168,53 +170,60 @@ export default function IdeScreen() {
 
 
 
-const editorActions = useMemo(() => [
-  {
-    label: 'Assemble',
-    onPress: () => {
-      const result = assemble(code);
-      if (!result.ok) {
-        setOutput(`Assembly error:\n${result.error}`);
-      } else {
-        const state = getState();
-        if (state) setRegisters(state.registers);
-        setOutput('Assembled successfully. Press Run or Step.');
-      }
+  const editorActions = useMemo(() => [
+    {
+      label: 'Assemble',
+      onPress: () => {
+        const result = assemble(code);
+        if (!result.ok) {
+          setOutput(`Assembly error:\n${result.error}`);
+        } else {
+          const state = getState();
+          if (state) setRegisters(state.registers);
+          setOutput('Assembled successfully. Press Run or Step.');
+        }
+      },
     },
-  },
-  {
-    label: 'Run',
-    onPress: () => {
-      const result = runSim();
-      if ('error' in result) {
-        setOutput(`Runtime error:\n${result.error}`);
-      } else {
-        setRegisters(result.registers);
-        setOutput(result.output || 'Program finished.');
-      }
+    {
+      label: 'Run',
+      onPress: () => {
+        const result = runSim();
+        if ('error' in result) {
+          setOutput(`Runtime error:\n${result.error}`);
+        } else {
+          setRegisters(result.registers);
+          setOutput(result.output || 'Program finished.');
+        }
+      },
     },
-  },
-  {
-    label: 'Step',
-    onPress: () => {
-      const result = stepSim();
-      if ('error' in result) {
-        setOutput(`Step error:\n${result.error}`);
-      } else {
-        setRegisters(result.registers);
-        setOutput(result.output || `PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
-      }
+    {
+      label: 'Step',
+      onPress: () => {
+        const result = stepSim();
+        if ('error' in result) {
+          setOutput(`Step error:\n${result.error}`);
+        } else {
+          setRegisters(result.registers);
+          setOutput(result.output || `PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
+        }
+      },
     },
-  },
-  {
-    label: 'Reset',
-    onPress: () => {
-      resetSim();
-      setRegisters(buildInitialRegisters());
-      setOutput('Reset.');
+    {
+      label: 'Reset',
+      onPress: () => {
+        resetSim();
+        setRegisters(buildInitialRegisters());
+        setOutput('Reset.');
+      },
     },
-  },
-], [code]);
+    {
+      label: 'Save',
+      onPress: async () => {
+        await AsyncStorage.setItem(STORAGE_KEY, code);
+        setOutput('Program saved to local storage.');
+      },
+    },
+  ], [code]);
 
 
   const panResponderHorizontal = useMemo(
@@ -250,6 +259,34 @@ const editorActions = useMemo(() => [
 
   const docsPress = () => window.open('/docs', '_self')
   const loginPress = () => window.open('/login', '_self')
+  
+  useEffect(() => {
+    const loadCode = async () => {
+      try {
+        const savedCode = await AsyncStorage.getItem(STORAGE_KEY);
+        if (savedCode !== null) {
+          setCode(savedCode);
+        }
+      } catch (e) {
+        console.error('Failed to load code.', e);
+      }
+    };
+
+    loadCode();
+  }, []);
+
+  useEffect(() => {
+    const saveCode = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, code);
+      } catch (e) {
+        console.error('Failed to save code.', e);
+      }
+    };
+
+    // We use a small delay (debounce) or just save directly
+    saveCode();
+  }, [code]);
 
   return (
     <SafeAreaView style={tStyles.safeArea}>
