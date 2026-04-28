@@ -15,8 +15,10 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+
 import { CodeEditor } from '../components/CodeEditor';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
+import { assemble, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
 
 // 1. Theme Configuration
 import type { Theme } from '../theme/themes';
@@ -145,7 +147,7 @@ export default function IdeScreen() {
   const isWide = width >= 1000;
 
   const [code, setCode] = useState(starterProgram);
-  const [registers] = useState<RegisterValue[]>(buildInitialRegisters());
+  const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('Program output will appear here.');
   const [activeTab, setActiveTab] = useState<'editor' | 'registers' | 'console'>('editor');
   
@@ -164,15 +166,55 @@ export default function IdeScreen() {
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
-  const editorActions = useMemo(
-    () => [
-      { label: 'Assemble', onPress: () => setOutput('Assemble clicked.') },
-      { label: 'Run', onPress: () => setOutput('Run clicked.') },
-      { label: 'Step', onPress: () => setOutput('Step clicked.') },
-      { label: 'Reset', onPress: () => setOutput('Reset clicked.') },
-    ],
-    []
-  );
+
+
+const editorActions = useMemo(() => [
+  {
+    label: 'Assemble',
+    onPress: () => {
+      const result = assemble(code);
+      if (!result.ok) {
+        setOutput(`Assembly error:\n${result.error}`);
+      } else {
+        const state = getState();
+        if (state) setRegisters(state.registers);
+        setOutput('Assembled successfully. Press Run or Step.');
+      }
+    },
+  },
+  {
+    label: 'Run',
+    onPress: () => {
+      const result = runSim(() => {});
+      if ('error' in result) {
+        setOutput(`Runtime error:\n${result.error}`);
+      } else {
+        setRegisters(result.registers);
+        setOutput('Program finished.');
+      }
+    },
+  },
+  {
+    label: 'Step',
+    onPress: () => {
+      const result = stepSim();
+      if ('error' in result) {
+        setOutput(`Step error:\n${result.error}`);
+      } else {
+        setRegisters(result.registers);
+        setOutput(`PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
+      }
+    },
+  },
+  {
+    label: 'Reset',
+    onPress: () => {
+      resetSim();
+      setRegisters(buildInitialRegisters());
+      setOutput('Reset.');
+    },
+  },
+], [code]);
 
   const panResponderHorizontal = useMemo(
     () =>

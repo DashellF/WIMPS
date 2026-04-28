@@ -1,0 +1,35 @@
+diff --git a/node_modules/@specy/mips/dist/index.js b/node_modules/@specy/mips/dist/index.js
+index 5c2369d..c0c346a 100644
+--- a/node_modules/@specy/mips/dist/index.js
++++ b/node_modules/@specy/mips/dist/index.js
+@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
+ // src/index.ts
+ var index_exports = {};
+ __export(index_exports, {
++  makeMipsfromSource: () => makeMipsfromSource,
+   BackStepAction: () => BackStepAction,
+   ConfirmResult: () => ConfirmResult,
+   DialogType: () => DialogType,
+@@ -39023,6 +39024,7 @@ function initializeMIPS() {
+ }
+ // Annotate the CommonJS export names for ESM import in node:
+ 0 && (module.exports = {
++  makeMipsfromSource,
+   BackStepAction,
+   ConfirmResult,
+   DialogType,
+diff --git a/node_modules/@specy/mips/dist/index.mjs b/node_modules/@specy/mips/dist/index.mjs
+index 3a39686..edc7409 100644
+--- a/node_modules/@specy/mips/dist/index.mjs
++++ b/node_modules/@specy/mips/dist/index.mjs
+@@ -38993,8 +38993,8 @@ function initializeMIPS() {
+ export {
+   BackStepAction,
+   ConfirmResult,
+-  DialogType,
+-  MIPS,
++  DialogType, makeMipsfromSource, MIPS,
+   registerHandlers,
+   unimplementedHandler
+ };
++
