@@ -10,7 +10,6 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
 
   const lines = code.split('\n');
   const lineCount = lines.length;
-
   const handleKeyPress = (e: any) => {
     const { start, end } = selection;
 
@@ -44,9 +43,11 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
         const next = start - deleteCount;
         setSelection({ start: next, end: next });
       } else if (start > 0) {
-        // CASE B: Line is empty, move cursor up to the previous line (IDE style)
+        // CASE B: Line is empty, delete the newline and move up
         e.preventDefault();
-        // The new position is simply just before the current newline character
+        // Slice out the single \n character at the cursor position
+        const newText = code.slice(0, start - 1) + code.slice(end);
+        setCode(newText);
         const next = start - 1; 
         setSelection({ start: next, end: next });
       }
