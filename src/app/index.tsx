@@ -143,6 +143,7 @@ const buildInitialRegisters = (): RegisterValue[] => {
 };
 
 export default function IdeScreen() {
+
   const { height, width } = useWindowDimensions();
   const isWide = width >= 1000;
 
@@ -150,7 +151,7 @@ export default function IdeScreen() {
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('Program output will appear here.');
   const [activeTab, setActiveTab] = useState<'editor' | 'registers' | 'console'>('editor');
-  
+
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   const [leftPanelPct, setLeftPanelPct] = useState(68);
@@ -190,6 +191,7 @@ const editorActions = useMemo(() => [
         setOutput(`Runtime error:\n${result.error}`);
       } else {
         setRegisters(result.registers);
+        setActiveLine(null); // Clear highlight when program finishes
         setOutput(result.output || 'Program finished.');
       }
     },
@@ -202,6 +204,8 @@ const editorActions = useMemo(() => [
         setOutput(`Step error:\n${result.error}`);
       } else {
         setRegisters(result.registers);
+        // CRITICAL: Update the highlight state
+        setActiveLine(getActiveLineIndex()); 
         setOutput(result.output || `PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
       }
     },
@@ -211,10 +215,12 @@ const editorActions = useMemo(() => [
     onPress: () => {
       resetSim();
       setRegisters(buildInitialRegisters());
+      setActiveLine(null); // Clear highlight
       setOutput('Reset.');
     },
   },
 ], [code]);
+
 
   const panResponderHorizontal = useMemo(
     () =>
@@ -307,7 +313,14 @@ const editorActions = useMemo(() => [
               {/* Top half: Editor */}
               <View style={{ flex: editorHeightPct, paddingBottom: 4 }}>
                 <View style={{ flex: 1, overflow: 'hidden' }}>
-                  <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
+                  
+                  <CodeEditor 
+                    code={code} 
+                    setCode={setCode} 
+                    actions={editorActions} 
+                    theme={activeTheme} 
+                    activeLine={activeLine} // <--- Added this
+                  />
                 </View>
               </View>
 
@@ -347,7 +360,13 @@ const editorActions = useMemo(() => [
         ) : (
           <View style={styles.mobileContent}>
             {activeTab === 'editor' && (
-              <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
+              <CodeEditor 
+                code={code} 
+                setCode={setCode} 
+                actions={editorActions} 
+                theme={activeTheme} 
+                activeLine={activeLine} // <--- Added this
+              />
             )}
 
             {activeTab === 'registers' && <RegisterPanel registers={registers} theme={activeTheme} />}
