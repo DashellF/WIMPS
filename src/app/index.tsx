@@ -1,19 +1,19 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Image,
+  LayoutAnimation,
+  PanResponder,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
+  UIManager,
   View,
   useWindowDimensions,
-  PanResponder,
-  Platform,
-  Animated,
-  LayoutAnimation,
-  UIManager,
-  Image,
 } from 'react-native';
 import { CodeEditor } from '../components/CodeEditor';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
@@ -205,6 +205,8 @@ export default function IdeScreen() {
     [height]
   );
 
+  const docsPress = () => window.open('/docs')
+
   return (
     <SafeAreaView style={tStyles.safeArea}>
       <StatusBar barStyle={activeTheme.statusBarStyle as any} />
@@ -218,13 +220,13 @@ export default function IdeScreen() {
                   ? require('../../assets/images/WIMPS_dark.png') 
                   : require('../../assets/images/WIMPS_light.png')
               } 
-              style={styles.logo} 
+              style={styles.logo}  
             />
           </View>
 
           <View style={styles.topBarActions}>
             <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-            <TouchableOpacity style={tStyles.secondaryButton}>
+            <TouchableOpacity style={tStyles.secondaryButton} onPress={(docsPress)}>
               <Text style={tStyles.secondaryButtonText}>Docs</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.primaryButton}>
@@ -232,6 +234,8 @@ export default function IdeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        
 
         {!isWide && (
           <View style={tStyles.mobileTabs}>
