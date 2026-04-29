@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   titleGroupWeb: {
-    marginLeft: 40,
+    marginLeft: 0,
   },
   // Added styling for the logo to ensure it scales correctly
   logo: {
