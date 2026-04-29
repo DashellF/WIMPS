@@ -201,7 +201,7 @@ export default function IdeScreen() {
         } else {
           setRegisters(result.registers);
           updateMemory();
-          setOutput(result.output || `PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
+          setOutput(`PC: 0x${result.pc.toString(16).padStart(8, '0')}\n` + result.output);
         }
       },
     },
