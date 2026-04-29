@@ -227,35 +227,63 @@ export default function IdeScreen() {
 
 
   const panResponderHorizontal = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderMove: (evt, gestureState) => {
-          const newPct = ((gestureState.moveX - 16) / (width - 32)) * 100;
-          if (newPct > 20 && newPct < 80) {
-            setLeftPanelPct(newPct);
-          }
-        },
-      }),
-    [width]
-  );
+  () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+
+      onPanResponderGrant: (evt) => {
+        evt.preventDefault?.();
+        if (typeof document !== 'undefined') {
+          document.body.style.userSelect = 'none';
+        }
+      },
+
+      onPanResponderMove: (evt, gestureState) => {
+        const newPct = ((gestureState.moveX - 16) / (width - 32)) * 100;
+        if (newPct > 20 && newPct < 80) {
+          setLeftPanelPct(newPct);
+        }
+      },
+
+      onPanResponderRelease: () => {
+        if (typeof document !== 'undefined') {
+          document.body.style.userSelect = '';
+        }
+      },
+    }),
+  [width]
+);
 
   const panResponderVertical = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderMove: (evt, gestureState) => {
-          const topOffset = 100;
-          const availableHeight = height - topOffset - 32;
-          const newPct = ((gestureState.moveY - topOffset) / availableHeight) * 100;
-          
-          if (newPct >= 35 && newPct <= 80) {
-            setEditorHeightPct(newPct);
-          }
-        },
-      }),
-    [height]
-  );
+  () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+
+      onPanResponderGrant: (evt) => {
+        evt.preventDefault?.();
+        if (typeof document !== 'undefined') {
+          document.body.style.userSelect = 'none';
+        }
+      },
+
+      onPanResponderMove: (evt, gestureState) => {
+        const topOffset = 100;
+        const availableHeight = height - topOffset - 32;
+        const newPct = ((gestureState.moveY - topOffset) / availableHeight) * 100;
+
+        if (newPct >= 35 && newPct <= 80) {
+          setEditorHeightPct(newPct);
+        }
+      },
+
+      onPanResponderRelease: () => {
+        if (typeof document !== 'undefined') {
+          document.body.style.userSelect = '';
+        }
+      },
+    }),
+  [height]
+);
 
   const docsPress = () => window.open('/docs', '_self')
   const loginPress = () => window.open('/login', '_self')
