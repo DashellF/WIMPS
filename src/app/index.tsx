@@ -18,8 +18,9 @@ import {
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CodeEditor } from '../components/CodeEditor';
+import { MemoryView } from '../components/MemoryView'; // Adjust path as needed
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
-import { assemble, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
+import { assemble, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
 
 // 1. Theme Configuration
 import type { Theme } from '../theme/themes';
@@ -115,17 +116,6 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
   );
 };
 
-const starterProgram = `.data
-msg: .asciiz "Hello, WIMPS!"
-
-.text
-main:
-    li $v0, 4
-    la $a0, msg
-    syscall
-
-    li $v0, 10
-    syscall`;
 
 const buildInitialRegisters = (): RegisterValue[] => {
   const names = [
@@ -147,15 +137,16 @@ export default function IdeScreen() {
   const { height, width } = useWindowDimensions();
   const isWide = width >= 1000;
 
-  const [code, setCode] = useState(starterProgram);
+  const [code, setCode] = useState('');
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('Program output will appear here.');
   const [activeTab, setActiveTab] = useState<'editor' | 'registers' | 'console'>('editor');
   const STORAGE_KEY = '@mips_editor_code';
+  const [memoryData, setMemoryData] = useState<any[]>([]);
 
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  const [leftPanelPct, setLeftPanelPct] = useState(68);
+  const [leftPanelPct, setLeftPanelPct] = useState(80);
   const [editorHeightPct, setEditorHeightPct] = useState(65);
 
   const toggleTheme = () => {
@@ -180,6 +171,7 @@ export default function IdeScreen() {
         } else {
           const state = getState();
           if (state) setRegisters(state.registers);
+          updateMemory();
           setOutput('Assembled successfully. Press Run or Step.');
         }
       },
@@ -192,6 +184,7 @@ export default function IdeScreen() {
           setOutput(`Runtime error:\n${result.error}`);
         } else {
           setRegisters(result.registers);
+          updateMemory();
           setOutput(result.output || 'Program finished.');
         }
       },
@@ -204,6 +197,7 @@ export default function IdeScreen() {
           setOutput(`Step error:\n${result.error}`);
         } else {
           setRegisters(result.registers);
+          updateMemory();
           setOutput(result.output || `PC: 0x${result.pc.toString(16).padStart(8, '0')}`);
         }
       },
@@ -316,6 +310,10 @@ export default function IdeScreen() {
     saveCode();
   }, [code]);
 
+  const updateMemory = () => {
+    const data = getMemoryRange(0x10010000, 20); // Read 20 words from data segment
+    setMemoryData(data);
+  };
   return (
     <SafeAreaView style={tStyles.safeArea}>
       <StatusBar barStyle={activeTheme.statusBarStyle as any} />
@@ -419,6 +417,8 @@ export default function IdeScreen() {
 
             <View style={[styles.sideColumn, { width: `${100 - leftPanelPct}%` }]}>
               <RegisterPanel registers={registers} theme={activeTheme} />
+              <View style={{ height: 16 }} />
+              <MemoryView data={memoryData} theme={activeTheme} />
             </View>
           </View>
         ) : (
