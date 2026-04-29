@@ -67,7 +67,7 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
         <ScrollView 
           style={styles.list}
           contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={true}
+          showsVerticalScrollIndicator={false}
         >
           {filteredRegisters.map((register) => (
             <View key={register.name} style={[styles.row, { borderBottomColor: theme.border + '22' }]}>

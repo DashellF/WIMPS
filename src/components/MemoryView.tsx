@@ -15,7 +15,7 @@ export function MemoryView({ data, theme }: any) {
 
       {/* INNER CONTENT CARD */}
       <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={styles.scrollContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {data.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.subText }]}>Awaiting run...</Text>
           ) : (
