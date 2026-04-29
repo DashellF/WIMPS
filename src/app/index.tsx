@@ -314,6 +314,20 @@ export default function IdeScreen() {
   };
 
   useEffect(() => {
+    const saveCode = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, code);
+      } catch (e) {
+        console.error("Failed to save code", e);
+      }
+    };
+
+    if (code) {
+      saveCode();
+    }
+  }, [code]);
+
+  useEffect(() => {
     const loadSettings = async () => {
       // 1. Load Code from AsyncStorage
       const savedCode = await AsyncStorage.getItem(STORAGE_KEY);

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { isThemeDark } from '../helpers/themeHelper';
 import { THEMES } from '../theme/themes';
 

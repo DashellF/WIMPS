@@ -14,6 +14,7 @@ import {
 import { isThemeDark, setStoredTheme } from '../helpers/themeHelper';
 import type { Theme } from '../theme/themes';
 import { THEMES } from '../theme/themes';
+import { PageWrapper } from '@/components/PageWrapper';
 
 // --- ThemeSwitch Component ---
 interface ThemeSwitchProps {
@@ -39,15 +40,17 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
   const iconColor = slideAnim.interpolate({ inputRange: [0, 1], outputRange: ['#ffffff', '#2563eb'] });
 
   return (
-    <TouchableOpacity activeOpacity={0.8} onPress={toggle}>
-      <Animated.View style={[styles.switchTrack, { backgroundColor: trackBg, borderColor: trackBorder }]}>
-        <Animated.View style={[styles.switchThumb, { backgroundColor: thumbBg, transform: [{ translateX: thumbPosition }] }]}>
-          <Animated.Text style={[styles.switchIcon, { color: iconColor, paddingLeft: isDark ? 1 : 0 }]}>
-            {isDark ? '☾' : '☼'}
-          </Animated.Text>
+    <PageWrapper>
+      <TouchableOpacity activeOpacity={0.8} onPress={toggle}>
+        <Animated.View style={[styles.switchTrack, { backgroundColor: trackBg, borderColor: trackBorder }]}>
+          <Animated.View style={[styles.switchThumb, { backgroundColor: thumbBg, transform: [{ translateX: thumbPosition }] }]}>
+            <Animated.Text style={[styles.switchIcon, { color: iconColor, paddingLeft: isDark ? 1 : 0 }]}>
+              {isDark ? '☾' : '☼'}
+            </Animated.Text>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </PageWrapper>
   );
 };
 
@@ -71,33 +74,35 @@ export default function DocsScreen() {
   ];
 
   return (
-    <SafeAreaView style={tStyles.safeArea}>
-      <StatusBar barStyle={activeTheme.statusBarStyle as any} />
-      <View style={tStyles.container}>
-        <View style={styles.topBar}>
-          <Image source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} style={styles.logo} />
-          <View style={styles.topBarActions}>
-            <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-            <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/login', '_self')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={tStyles.pageHeader}>
-          <Text style={tStyles.pageTitle}>Documentation</Text>
-          <Text style={tStyles.pageSubtitle}>Everything you need to write MIPS assembly in WIMPS</Text>
-        </View>
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {sections.map((section) => (
-            <View key={section.title} style={tStyles.card}>
-              <Text style={tStyles.cardTitle}>{section.title}</Text>
-              <Text style={tStyles.cardBody}>{section.content}</Text>
+    <PageWrapper>
+      <SafeAreaView style={tStyles.safeArea}>
+        <StatusBar barStyle={activeTheme.statusBarStyle as any} />
+        <View style={tStyles.container}>
+          <View style={styles.topBar}>
+            <Image source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} style={styles.logo} />
+            <View style={styles.topBarActions}>
+              <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
+              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/login', '_self')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
             </View>
-          ))}
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+          </View>
+
+          <View style={tStyles.pageHeader}>
+            <Text style={tStyles.pageTitle}>Documentation</Text>
+            <Text style={tStyles.pageSubtitle}>Everything you need to write MIPS assembly in WIMPS</Text>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            {sections.map((section) => (
+              <View key={section.title} style={tStyles.card}>
+                <Text style={tStyles.cardTitle}>{section.title}</Text>
+                <Text style={tStyles.cardBody}>{section.content}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </PageWrapper>
   );
 }
 

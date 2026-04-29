@@ -99,6 +99,7 @@ const getThemeStyles = (theme: Theme) =>
       flex: 1,
       backgroundColor: theme.bg,
       padding: 12,
+
     },
     header: {
       flexDirection: 'row',
