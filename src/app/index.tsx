@@ -238,6 +238,7 @@ export default function IdeScreen() {
   const editorActions = useMemo(() => [
     {
       label: 'Assemble',
+      icon: require('../../assets/images/assemble_icon.png'),
       onPress: () => {
         const result = assemble(code);
         if (!result.ok) setOutput(`Assembly error:\n${result.error}`);
@@ -251,6 +252,7 @@ export default function IdeScreen() {
     },
     {
       label: 'Run',
+      icon: require('../../assets/images/run_icon.png'),
       onPress: () => {
         const result = runSim();
         if ('error' in result) setOutput(`Runtime error:\n${result.error}`);
@@ -263,6 +265,7 @@ export default function IdeScreen() {
     },
     {
         label: 'Reset',
+        icon: require('../../assets/images/reset_icon.png'),
         onPress: () => {
           resetSim();
           setRegisters(buildInitialRegisters());

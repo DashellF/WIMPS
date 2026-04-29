@@ -137,6 +137,7 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     height: 44, 
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 10
   },
   
   actionIcon: {
@@ -149,7 +150,6 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: '600',
     fontSize: 11 
   },
-  
   editorShell: { 
     flex: 1, 
     backgroundColor: theme.card, 
