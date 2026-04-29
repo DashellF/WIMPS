@@ -125,7 +125,7 @@ export default function DocsScreen() {
     },
     {
       title: 'Keyboard Shortcuts',
-      content: 'Assemble: Ctrl+B  •  Run: Ctrl+R  •  Step: Ctrl+S  •  Reset: Ctrl+Shift+R',
+      content: 'WIP',
     },
   ];
 

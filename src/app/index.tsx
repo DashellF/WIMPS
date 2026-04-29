@@ -164,6 +164,7 @@ export default function IdeScreen() {
   const editorActions = useMemo(() => [
     {
       label: 'Assemble',
+      icon: require('../../assets/images/assemble_icon.png'),
       onPress: () => {
         const result = assemble(code);
         if (!result.ok) {
@@ -178,6 +179,7 @@ export default function IdeScreen() {
     },
     {
       label: 'Run',
+      icon: require('../../assets/images/run_icon.png'),
       onPress: () => {
         const result = runSim();
         if ('error' in result) {
@@ -191,6 +193,7 @@ export default function IdeScreen() {
     },
     {
       label: 'Step',
+      icon: require('../../assets/images/step_icon.png'),
       onPress: () => {
         const result = stepSim();
         if ('error' in result) {
@@ -204,6 +207,7 @@ export default function IdeScreen() {
     },
     {
       label: 'Reset',
+      icon: require('../../assets/images/reset_icon.png'),
       onPress: () => {
         resetSim();
         setRegisters(buildInitialRegisters());
@@ -212,6 +216,7 @@ export default function IdeScreen() {
     },
     {
       label: 'Save',
+      icon: require('../../assets/images/save_icon.png'),
       onPress: async () => {
         await AsyncStorage.setItem(STORAGE_KEY, code);
         setOutput('Program saved to local storage.');

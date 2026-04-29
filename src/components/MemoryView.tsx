@@ -17,7 +17,7 @@ export function MemoryView({ data, theme }: any) {
       <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={styles.scrollContent}>
           {data.length === 0 ? (
-            <Text style={[styles.emptyText, { color: theme.subText }]}>Initialize simulator...</Text>
+            <Text style={[styles.emptyText, { color: theme.subText }]}>Awaiting run...</Text>
           ) : (
             data.map((item: any, index: number) => (
               <View 

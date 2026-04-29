@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { Theme } from '../theme/themes';
 
 const TAB = '    ';
@@ -60,12 +60,22 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Editor</Text>
-          <Text style={styles.subtitle}>MIPS assembly source</Text>
+          <Text style={styles.subtitle}>MIPS Assembly</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionsRow}>
           {actions.map((a: any) => (
             <TouchableOpacity key={a.label} style={styles.actionButton} onPress={a.onPress}>
+              {a.icon ? (
+              <Image 
+                source={a.icon} 
+                style={[
+                  styles.actionIcon, 
+                  { tintColor: theme.text } // This makes black icons match your theme text color!
+                ]} 
+              />
+            ) : (
               <Text style={styles.actionButtonText}>{a.label}</Text>
+            )}  
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -116,9 +126,32 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
   header: { gap: 12, marginBottom: 12 },
   title: { color: theme.text, fontSize: 18, fontWeight: '700' },
   subtitle: { color: theme.subText, fontSize: 13 },
-  actionsRow: { gap: 8 },
-  actionButton: { backgroundColor: theme.btnBg, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.border },
-  actionButtonText: { color: theme.text, fontWeight: '600' },
+  actionsRow: { 
+    gap: 8,
+    paddingRight: 16 
+  },
+  actionButton: { 
+    backgroundColor: theme.btnBg, 
+    // Square dimensions for icons
+    width: 44, 
+    height: 44, 
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10, 
+    borderWidth: 1, 
+    borderColor: theme.border 
+  },
+  
+  actionIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+  },
+  actionButtonText: { 
+    color: theme.text, 
+    fontWeight: '600',
+    fontSize: 11 
+  },
   
   editorShell: { 
     flex: 1, 
