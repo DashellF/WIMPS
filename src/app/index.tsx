@@ -147,7 +147,7 @@ export default function IdeScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   const [leftPanelPct, setLeftPanelPct] = useState(80);
-  const [editorHeightPct, setEditorHeightPct] = useState(65);
+  const [editorHeightPct, setEditorHeightPct] = useState(80);
 
   const toggleTheme = () => {
     LayoutAnimation.configureNext(

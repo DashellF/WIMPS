@@ -40,138 +40,154 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
   }, [query, registers]);
 
   return (
-    <View style={styles.wrapper}>
-      <Text style={styles.title}>Registers</Text>
-      <Text style={styles.subtitle}>Search and inspect current register values</Text>
-
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search registers..."
-        placeholderTextColor={theme.subText}
-        style={styles.searchInput}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
+    <View style={styles.outerWrapper}>
+      {/* OUTER HEADER SECTION */}
+      <View style={styles.header}>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: theme.text }]}>CPU Registers</Text>
+        </View>
+        
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Filter..."
+          placeholderTextColor={theme.subText}
+          style={styles.compactSearch}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
 
       <View style={styles.tableHeader}>
         <Text style={[styles.headerCell, styles.nameColumn]}>Name</Text>
         <Text style={[styles.headerCell, styles.numColumn]}>#</Text>
-        <Text style={[styles.headerCell, styles.valueColumn]}>Hex</Text>
+        <Text style={[styles.headerCell, styles.valueColumn]}>Hex Value</Text>
       </View>
 
-      <ScrollView style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {filteredRegisters.map((register) => (
-          <View key={register.name} style={styles.row}>
-            <View style={styles.nameColumn}>
-              <Text style={styles.nameText}>{register.name}</Text>
-              {register.decimalValue !== undefined && (
-                <Text style={styles.decimalText}>{register.decimalValue}</Text>
-              )}
+      {/* RECESSED INNER CARD */}
+      <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <ScrollView 
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={true}
+        >
+          {filteredRegisters.map((register) => (
+            <View key={register.name} style={[styles.row, { borderBottomColor: theme.border + '22' }]}>
+              <View style={styles.nameColumn}>
+                <Text style={[styles.nameText, { color: theme.text }]}>{register.name}</Text>
+                {register.decimalValue !== undefined && (
+                  <Text style={[styles.decimalText, { color: theme.subText }]}>{register.decimalValue}</Text>
+                )}
+              </View>
+
+              <Text style={[styles.rowText, styles.numColumn, { color: theme.subText }]}>
+                {register.number}
+              </Text>
+
+              <Text
+                style={[styles.rowText, styles.valueColumn, { color: theme.text, fontWeight: 'bold' }]}
+                numberOfLines={1}
+              >
+                {register.hexValue}
+              </Text>
             </View>
-
-            <Text style={[styles.rowText, styles.numColumn]}>
-              {register.number}
-            </Text>
-
-            <Text
-              style={[styles.rowText, styles.valueColumn]}
-              numberOfLines={1}
-            >
-              {register.hexValue}
-            </Text>
-          </View>
-        ))}
-      </ScrollView>
+          ))}
+        </ScrollView>
+      </View>
     </View>
   );
 }
 
 const getThemeStyles = (theme: Theme) =>
   StyleSheet.create({
-    wrapper: {
+    outerWrapper: {
       flex: 1,
-      minHeight: 400,
       backgroundColor: theme.bg,
       borderRadius: 16,
-      padding: 14,
+      padding: 12,
       borderWidth: 1,
       borderColor: theme.border,
     },
-    title: {
-      color: theme.text,
-      fontSize: 18,
-      fontWeight: '700',
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16, // Increased margin for breathing room
+      paddingHorizontal: 4,
     },
-    subtitle: {
-      color: theme.subText,
-      fontSize: 13,
-      marginTop: 4,
-      marginBottom: 12,
-    },
-    searchInput: {
+    compactSearch: {
       backgroundColor: theme.card,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      borderRadius: 8,      // Slightly rounder
+      paddingHorizontal: 12, // More horizontal space inside
+      paddingVertical: 8,   // Taller box
+      fontSize: 13,         // Larger text for readability
       color: theme.text,
-      marginBottom: 12,
+      width: '60%',         // Use a percentage so it grows with the panel
+      maxWidth: 180,        // But don't let it get too huge
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    title: {
+      fontSize: 12,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
     },
     tableHeader: {
       flexDirection: 'row',
+      paddingHorizontal: 14,
       paddingBottom: 8,
-      marginBottom: 4,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
     },
     headerCell: {
       color: theme.subText,
-      fontSize: 12,
+      fontSize: 10,
       fontWeight: '700',
       textTransform: 'uppercase',
+    },
+    innerCard: {
+      flex: 1,
+      borderRadius: 10,
+      borderWidth: 1,
+      overflow: 'hidden',
     },
     list: {
       flex: 1,
     },
     listContent: {
-      paddingBottom: 8,
+      paddingHorizontal: 4,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border,
     },
     rowText: {
-      color: theme.text,
       fontFamily: 'monospace',
-      fontSize: 13,
+      fontSize: 12,
     },
     nameColumn: {
       flex: 1.2,
-      paddingRight: 8,
     },
     numColumn: {
-      width: 36,
+      width: 30,
     },
     valueColumn: {
       flex: 1.4,
+      textAlign: 'right',
     },
     nameText: {
-      color: theme.text,
       fontWeight: '700',
-      fontSize: 13,
+      fontSize: 12,
     },
     decimalText: {
-      color: theme.subText,
-      fontSize: 12,
-      marginTop: 2,
+      fontSize: 10,
       fontFamily: 'monospace',
     },
   });
