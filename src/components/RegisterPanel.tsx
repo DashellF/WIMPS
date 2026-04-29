@@ -33,8 +33,7 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
       return (
         register.name.toLowerCase().includes(normalized) ||
         register.number.toString().includes(normalized) ||
-        register.hexValue.toLowerCase().includes(normalized) ||
-        (register.decimalValue?.toLowerCase().includes(normalized) ?? false)
+        register.hexValue.toLowerCase().includes(normalized)
       );
     });
   }, [query, registers]);
@@ -64,7 +63,6 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
         <Text style={[styles.headerCell, styles.valueColumn]}>Hex Value</Text>
       </View>
 
-      {/* RECESSED INNER CARD */}
       <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <ScrollView 
           style={styles.list}
@@ -75,9 +73,6 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
             <View key={register.name} style={[styles.row, { borderBottomColor: theme.border + '22' }]}>
               <View style={styles.nameColumn}>
                 <Text style={[styles.nameText, { color: theme.text }]}>{register.name}</Text>
-                {register.decimalValue !== undefined && (
-                  <Text style={[styles.decimalText, { color: theme.subText }]}>{register.decimalValue}</Text>
-                )}
               </View>
 
               <Text style={[styles.rowText, styles.numColumn, { color: theme.subText }]}>

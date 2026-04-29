@@ -107,13 +107,14 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
   );
 };
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const THEME_STORAGE_KEY = '@app_theme_preference';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   // Load saved theme on mount
   useEffect(() => {
@@ -146,21 +147,23 @@ export default function LoginScreen() {
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
-  const handleLogin = async () => {
+  const handleRegister = async () => {
     try {
-      const res = await fetch('http://localhost:3001/auth/login', {
+      const res = await fetch('http://localhost:3001/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
       
-      if (!res.ok) throw new Error(data.message || 'Login failed');
+      if (!res.ok) throw new Error(data.error || 'Registration failed');
 
-      await AsyncStorage.setItem('@user_token', data.token);
-      window.open('/', '_self'); // Redirect to main MIPS page
+      setSuccess('Account created! You can now log in.');
+      setError('');
+      setTimeout(() => window.open('/login', '_self'), 1500); // Send to login
     } catch (err: any) {
       setError(err.message);
+      setSuccess('');
     }
   };
 
@@ -181,17 +184,18 @@ export default function LoginScreen() {
           />
           <View style={styles.topBarActions}>
             <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-            <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/register', '_self')}>
-              <Text style={tStyles.secondaryButtonText}>Register</Text>
+            <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/login', '_self')}>
+              <Text style={tStyles.secondaryButtonText}>Login</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Login Form */}
+        {/* Register Form */}
         <View style={styles.formWrapper}>
           <View style={tStyles.card}>
-            <Text style={tStyles.title}>Welcome Back</Text>
+            <Text style={tStyles.title}>Create Account</Text>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {success ? <Text style={styles.successText}>{success}</Text> : null}
 
             <TextInput
               style={tStyles.input}
@@ -210,8 +214,8 @@ export default function LoginScreen() {
               secureTextEntry
             />
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-              <Text style={styles.primaryButtonText}>Sign In</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={handleRegister}>
+              <Text style={styles.primaryButtonText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -308,6 +312,11 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#ef4444',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  successText: {
+    color: '#22c55e',
     marginBottom: 16,
     textAlign: 'center',
   },
