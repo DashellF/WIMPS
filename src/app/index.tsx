@@ -284,8 +284,6 @@ export default function IdeScreen() {
   [height]
 );
 
-  const docsPress = () => window.open('/docs', '_self')
-  const loginPress = () => window.open('/login', '_self')
   
   useEffect(() => {
     const loadCode = async () => {
@@ -338,10 +336,10 @@ export default function IdeScreen() {
 
           <View style={styles.topBarActions}>
             <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-            <TouchableOpacity style={tStyles.secondaryButton} onPress={(docsPress)}>
+            <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/docs', '_self')}>
               <Text style={tStyles.secondaryButtonText}>Docs</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryButton} onPress={(loginPress)}>
+            <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/login', '_self')}>
               <Text style={styles.primaryButtonText}>Login</Text>
             </TouchableOpacity>
           </View>

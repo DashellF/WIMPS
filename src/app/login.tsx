@@ -1,18 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    Image,
-    LayoutAnimation,
-    Platform,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    UIManager,
-    View,
+  Animated,
+  Image,
+  LayoutAnimation,
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  UIManager,
+  View,
 } from 'react-native';
 
 // Theme Configuration
@@ -181,8 +181,11 @@ export default function LoginScreen() {
           />
           <View style={styles.topBarActions}>
             <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-            <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/register', '_self')}>
-              <Text style={tStyles.secondaryButtonText}>Register</Text>
+            <TouchableOpacity style={tStyles.secondaryButton} onPress = {() => window.open('/', '_self')}>
+              <Text style={tStyles.secondaryButtonText}>IDE</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/register', '_self')}>
+              <Text style={styles.primaryButtonText}>Register</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -296,15 +299,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: '#2563eb',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
   },
   primaryButtonText: {
     color: '#ffffff',
     fontWeight: '600',
-    fontSize: 16,
   },
   errorText: {
     color: '#ef4444',

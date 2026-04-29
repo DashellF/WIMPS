@@ -97,7 +97,6 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
 
 // ── DocsScreen ───────────────────────────────────────────────────────────────
 export default function DocsScreen() {
-  const idePress = () => window.open('/', '_self')
   const [isDarkMode, setIsDarkMode] = useState(true);
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
@@ -146,11 +145,11 @@ export default function DocsScreen() {
           />
           <View style={styles.topBarActions}>
             <ThemeSwitch isDark={isDarkMode} toggle={() => setIsDarkMode(p => !p)} />
-            <TouchableOpacity style={tStyles.secondaryButton} onPress = {(idePress)}>
+            <TouchableOpacity style={tStyles.secondaryButton} onPress = {() => window.open('/', '_self')}>
               <Text style={tStyles.secondaryButtonText}>IDE</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Login</Text>
+              <Text style={styles.primaryButtonText} onPress = {() => window.open('/login', '_self')}>Login</Text>
             </TouchableOpacity>
           </View>
         </View>
