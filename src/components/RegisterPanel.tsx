@@ -98,10 +98,7 @@ const getThemeStyles = (theme: Theme) =>
     outerWrapper: {
       flex: 1,
       backgroundColor: theme.bg,
-      borderRadius: 16,
       padding: 12,
-      borderWidth: 1,
-      borderColor: theme.border,
     },
     header: {
       flexDirection: 'row',

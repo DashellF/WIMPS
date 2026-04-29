@@ -19,7 +19,7 @@ export const THEMES: Record<'dark' | 'light', Theme> = {
     bg: '#0b1020',
     text: '#f8fafc',
     subText: '#94a3b8',
-    card: '#111827',
+    card: '#1f2937',
     border: '#1f2937',
     resizer: '#334155',
     tabActive: '#1e293b',

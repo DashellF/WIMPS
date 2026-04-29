@@ -122,7 +122,7 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
 }
 
 const getThemeStyles = (theme: Theme) => StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: theme.bg, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.border },
+  wrapper: { flex: 1, backgroundColor: theme.bg, padding: 14, borderWidth: 1, borderColor: theme.border },
   header: { gap: 12, marginBottom: 12 },
   title: { color: theme.text, fontSize: 18, fontWeight: '700' },
   subtitle: { color: theme.subText, fontSize: 13 },
@@ -137,9 +137,6 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     height: 44, 
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 10, 
-    borderWidth: 1, 
-    borderColor: theme.border 
   },
   
   actionIcon: {

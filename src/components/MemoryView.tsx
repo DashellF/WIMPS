@@ -1,4 +1,3 @@
-// MemoryView.tsx
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -41,9 +40,7 @@ export function MemoryView({ data, theme }: any) {
 const styles = StyleSheet.create({
   outerCard: {
     flex: 1,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 12, // This creates the "Frame" around the inner card
+    padding: 12
   },
   header: {
     marginBottom: 10,
