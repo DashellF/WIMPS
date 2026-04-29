@@ -15,12 +15,16 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) return next();
+userSchema.pre('save', async function() {
+    // 1. If password isn't changed, just return (no next needed)
+    if (!this.isModified('password')) return;
 
+    // 2. Hash the password
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
+    
+    // 3. No next() call here! 
+    // Mongoose waits for this async function to finish.
 });
 
 // Method to compare password
