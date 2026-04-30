@@ -48,20 +48,13 @@ export function RegisterPanel({
 
   return (
     <View style={styles.outerWrapper}>
-      {/* OUTER HEADER SECTION */}
-        <View style={styles.header}>
+  {/* OUTER HEADER SECTION */}
+  <View style={styles.header}>
     <View style={styles.titleRow}>
       <Text style={[styles.title, { color: theme.text }]}>
         CPU Registers
       </Text>
     </View>
-    {toggleFormat && (
-  <TouchableOpacity onPress={toggleFormat} style={styles.hexToggle}>
-    <Text style={{ color: theme.text, fontSize: 11 }}>
-      {showHex ? 'HEX' : 'INT'}
-    </Text>
-  </TouchableOpacity>
-)}
 
     <View style={styles.searchContainer}>
       <TextInput
@@ -74,51 +67,68 @@ export function RegisterPanel({
         autoCorrect={false}
       />
     </View>
-      </View>
+  </View>
 
-      <View style={styles.tableHeader}>
-        <Text style={[styles.headerCell, styles.nameColumn]}>Name</Text>
-        <Text style={[styles.headerCell, styles.numColumn]}>#</Text>
-        <TouchableOpacity
-          style={styles.valueColumn}
-          onPress={toggleFormat}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.headerCell, { textAlign: 'right' }]}>
-            {showHex ? 'Hex Value' : 'Int Value'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+  {/* TABLE HEADER */}
+  <View style={styles.tableHeader}>
+    <Text style={[styles.headerCell, styles.nameColumn]}>Name</Text>
 
-      <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <ScrollView 
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {filteredRegisters.map((register) => (
-            <View key={register.name} style={[styles.row, { borderBottomColor: theme.border + '22' }]}>
-              <View style={styles.nameColumn}>
-                <Text style={[styles.nameText, { color: theme.text }]}>{register.name}</Text>
-              </View>
+    <Text style={[styles.headerCell, styles.numColumn]}>#</Text>
 
-              <Text style={[styles.rowText, styles.numColumn, { color: theme.subText }]}>
-                {register.number}
-              </Text>
-
-              <Text
-                style={[styles.rowText, styles.valueColumn, { color: theme.text, fontWeight: 'bold' }]}
-                numberOfLines={1}
-              >
-                {showHex
-                  ? register.hexValue
-                  : (parseInt(register.hexValue, 16) | 0).toString()}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
+    <View style={styles.valueColumn}>
+      <TouchableOpacity
+        onPress={toggleFormat}
+        style={styles.modeButton}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.modeButtonText}>
+          {showHex ? 'HEX VALUE' : 'INT VALUE'}
+        </Text>
+      </TouchableOpacity>
     </View>
+  </View>
+
+  {/* REGISTER LIST */}
+  <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+    <ScrollView
+      style={styles.list}
+      contentContainerStyle={styles.listContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {filteredRegisters.map((register) => (
+        <View
+          key={register.name}
+          style={[styles.row, { borderBottomColor: theme.border + '22' }]}
+        >
+          <View style={styles.nameColumn}>
+            <Text style={[styles.nameText, { color: theme.text }]}>
+              {register.name}
+            </Text>
+          </View>
+
+          <Text
+            style={[styles.rowText, styles.numColumn, { color: theme.subText }]}
+          >
+            {register.number}
+          </Text>
+
+          <Text
+            style={[
+              styles.rowText,
+              styles.valueColumn,
+              { color: theme.text, fontWeight: 'bold' },
+            ]}
+            numberOfLines={1}
+          >
+            {showHex
+              ? register.hexValue
+              : (parseInt(register.hexValue, 16) | 0).toString()}
+          </Text>
+        </View>
+      ))}
+    </ScrollView>
+  </View>
+</View>
   );
 }
 
@@ -224,5 +234,18 @@ hexToggle: {
   borderColor: theme.border,
   borderRadius: 6,
   marginLeft: 8,
+},
+modeButton: {
+  backgroundColor: '#2563eb',
+  paddingHorizontal: 6,
+  paddingVertical: 3,
+  borderRadius: 8,
+  alignSelf: 'flex-end',
+},
+
+modeButtonText: {
+  color: '#fff',
+  fontSize: 9,
+  fontWeight: '600',
 },
   });

@@ -57,29 +57,25 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
   return (
     <View style={styles.wrapper}>
       {/* Header unchanged */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Editor</Text>
-          <Text style={styles.subtitle}>MIPS Assembly</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionsRow}>
-          {actions.map((a: any) => (
-            <TouchableOpacity key={a.label} style={styles.actionButton} onPress={a.onPress}>
-              {a.icon ? (
-              <Image 
-                source={a.icon} 
-                style={[
-                  styles.actionIcon, 
-                  { tintColor: theme.text } // This makes black icons match your theme text color!
-                ]} 
-              />
-            ) : (
-              <Text style={styles.actionButtonText}>{a.label}</Text>
-            )}  
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      <View style={styles.actionsWrapper}>
+  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionsRow}>
+    {actions.map((a: any) => (
+      <TouchableOpacity key={a.label} style={styles.actionButton} onPress={a.onPress}>
+        {a.icon ? (
+        <Image 
+          source={a.icon} 
+          style={[
+            styles.actionIcon, 
+            { tintColor: theme.text }
+          ]} 
+        />
+      ) : (
+        <Text style={styles.actionButtonText}>{a.label}</Text>
+      )}  
+      </TouchableOpacity>
+    ))}
+  </ScrollView>
+</View>
 
       {/* The Shell is the outer container. 
         We use a ScrollView as the primary container for the editor body.
@@ -123,13 +119,16 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
 
 const getThemeStyles = (theme: Theme) => StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: theme.bg, padding: 14, borderWidth: 1, borderColor: theme.border },
-  header: { gap: 12, marginBottom: 12 },
-  title: { color: theme.text, fontSize: 18, fontWeight: '700' },
-  subtitle: { color: theme.subText, fontSize: 13 },
+  //header: { gap: 12, marginBottom: 12 },
+  //title: { color: theme.text, fontSize: 18, fontWeight: '700' },
+  //subtitle: { color: theme.subText, fontSize: 13 },
   actionsRow: { 
-    gap: 8,
-    paddingRight: 16 
-  },
+  gap: 8,
+  paddingRight: 16,
+},
+  actionsWrapper: {
+  marginBottom: 12,
+},
   actionButton: { 
     backgroundColor: theme.btnBg, 
     // Square dimensions for icons
