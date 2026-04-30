@@ -1,15 +1,26 @@
-import React, { useState } from 'react';
-import { Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { Theme } from '../theme/themes';
 
 const TAB = '    ';
 
 export function CodeEditor({ code, setCode, actions, theme }: any) {
   const [selection, setSelection] = useState({ start: 0, end: 0 });
-  const styles = getThemeStyles(theme);
+const [showActionMenu, setShowActionMenu] = useState(false);
+const menuAnim = useRef(new Animated.Value(0)).current;
+const styles = getThemeStyles(theme);
 
   const lines = code.split('\n');
   const lineCount = lines.length;
+
+useEffect(() => {
+  Animated.timing(menuAnim, {
+    toValue: showActionMenu ? 1 : 0,
+    duration: 180,
+    useNativeDriver: true,
+  }).start();
+}, [showActionMenu]);
+
   const handleKeyPress = (e: any) => {
     const { start, end } = selection;
 
@@ -55,90 +66,101 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
   };
 
   return (
-    <View style={styles.wrapper}>
-      {/* Header unchanged */}
-      <View style={styles.actionsWrapper}>
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionsRow}>
+  <View style={styles.wrapper}>
+    <View style={styles.floatingMenuArea}>
+      <TouchableOpacity
+  style={styles.menuToggleButton}
+  onPress={() => setShowActionMenu((prev) => !prev)}
+  activeOpacity={0.85}
+>
+  <Image
+    source={require('../../assets/images/chevron_down.png')}
+    style={[
+      styles.chevronImage,
+      {
+        tintColor: theme.text,
+        transform: [{ rotate: showActionMenu ? '180deg' : '0deg' }],
+      },
+    ]}
+  />
+</TouchableOpacity>
+
+{showActionMenu && (
+  <Animated.View
+    style={[
+      styles.floatingActionsRow,
+      {
+        opacity: menuAnim,
+        transform: [
+          {
+            translateY: menuAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-6, 0],
+            }),
+          },
+        ],
+      },
+    ]}
+  >
     {actions.map((a: any) => (
-      <TouchableOpacity key={a.label} style={styles.actionButton} onPress={a.onPress}>
+      <TouchableOpacity
+        key={a.label}
+        style={styles.floatingActionButton}
+        onPress={a.onPress}
+      >
         {a.icon ? (
-        <Image 
-          source={a.icon} 
-          style={[
-            styles.actionIcon, 
-            { tintColor: theme.text }
-          ]} 
-        />
-      ) : (
-        <Text style={styles.actionButtonText}>{a.label}</Text>
-      )}  
+          <Image
+            source={a.icon}
+            style={[
+              styles.actionIcon,
+              { tintColor: theme.text },
+            ]}
+          />
+        ) : (
+          <Text style={styles.actionButtonText}>{a.label}</Text>
+        )}
       </TouchableOpacity>
     ))}
-  </ScrollView>
-</View>
-
-      {/* The Shell is the outer container. 
-        We use a ScrollView as the primary container for the editor body.
-      */}
-      <View style={styles.editorShell}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          bounces={false}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* THE GUTTER */}
-          <View style={styles.gutter}>
-            {Array.from({ length: lineCount }).map((_, i) => (
-              <Text key={i} style={styles.lineNumber}>
-                {i + 1}
-              </Text>
-            ))}
-          </View>
-
-          {/* THE INPUT */}
-          <TextInput
-            value={code}
-            onChangeText={setCode}
-            multiline
-            autoCapitalize="none"
-            autoCorrect={false}
-            spellCheck={false}
-            // scrollEnabled={false} is critical here because the parent ScrollView 
-            // handles the actual scrolling logic on Web/Mobile.
-            scrollEnabled={false} 
-            style={styles.editorInput}
-            selection={selection}
-            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
-            onKeyPress={handleKeyPress}
-          />
-        </ScrollView>
-      </View>
+  </Animated.View>
+)}
     </View>
-  );
+
+    <View style={styles.editorShell}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.gutter}>
+          {Array.from({ length: lineCount }).map((_, i) => (
+            <Text key={i} style={styles.lineNumber}>
+              {i + 1}
+            </Text>
+          ))}
+        </View>
+
+        <TextInput
+          value={code}
+          onChangeText={setCode}
+          multiline
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
+          scrollEnabled={false}
+          style={styles.editorInput}
+          selection={selection}
+          onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+          onKeyPress={handleKeyPress}
+        />
+      </ScrollView>
+    </View>
+  </View>
+);
 }
 
 const getThemeStyles = (theme: Theme) => StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: theme.bg, padding: 14, borderWidth: 1, borderColor: theme.border },
-  //header: { gap: 12, marginBottom: 12 },
-  //title: { color: theme.text, fontSize: 18, fontWeight: '700' },
-  //subtitle: { color: theme.subText, fontSize: 13 },
-  actionsRow: { 
-  gap: 8,
-  paddingRight: 16,
-},
-  actionsWrapper: {
-  marginBottom: 12,
-},
-  actionButton: { 
-    backgroundColor: theme.btnBg, 
-    // Square dimensions for icons
-    width: 44, 
-    height: 44, 
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 10
-  },
-  
+
   actionIcon: {
     width: 20,
     height: 20,
@@ -153,7 +175,7 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     flex: 1, 
     backgroundColor: theme.card, 
     borderRadius: 12, 
-    overflow: 'hidden', 
+    overflow: 'visible', 
     borderWidth: 1, 
     borderColor: theme.border,
   },
@@ -189,4 +211,44 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     textAlignVertical: 'top',
     minHeight: '100%'
   },
+   floatingMenuArea: {
+  position: 'absolute',
+  top: 10,
+  right: 10,
+  zIndex: 20,
+  elevation: 10,
+  alignItems: 'flex-end',
+},
+
+  floatingActionsRow: {
+    flexDirection: 'column',
+    gap: 8,
+    marginTop: 8,
+  },
+
+  floatingActionButton: {
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+menuToggleButton: {
+  backgroundColor: 'rgba(15, 23, 42, 0.82)',
+  width: 44,
+  height: 44,
+  justifyContent: 'center',
+  alignItems: 'center',
+  borderRadius: 10,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.08)',
+},
+chevronImage: {
+  width: 28,
+  height: 28,
+  resizeMode: 'contain',
+},
 });

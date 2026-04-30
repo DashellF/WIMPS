@@ -54,7 +54,7 @@ export function RegisterPanel({
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Filter registers..."
+        placeholder="Search . . ."
         placeholderTextColor={theme.subText}
         style={styles.headerSearch}
         autoCapitalize="none"
@@ -194,13 +194,13 @@ const getThemeStyles = (theme: Theme) =>
       backgroundColor: '#2563eb',
       paddingHorizontal: 6,
       paddingVertical: 3,
-      borderRadius: 8,
+      borderRadius: 9,
       alignSelf: 'flex-end',
     },
 
     modeButtonText: {
       color: '#fff',
-      fontSize: 9,
+      fontSize: 11,
       fontWeight: '600',
     },
   });
