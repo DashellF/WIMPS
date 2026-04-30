@@ -22,7 +22,7 @@ import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { WindowWrapper } from '../components/WindowWrapper';
-import { assemble, getMemoryRange, getState, resetSim, runSim } from '../simulator/useMips';
+import { assemble, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
 
 import { PageWrapper } from '@/components/PageWrapper';
 import type { Theme } from '../theme/themes';
@@ -276,6 +276,20 @@ export default function IdeScreen() {
           setRegisters(result.registers);
           updateMemory();
           setOutput(result.output || 'Program finished.');
+        }
+      },
+    },
+    {
+      label: 'Step',
+      icon: require('../../assets/images/step_icon.png'),
+      onPress: () => {
+        const result = stepSim();
+        if ('error' in result) {
+          setOutput(`Step error:\n${result.error}`);
+        } else {
+          setRegisters(result.registers);
+          updateMemory();
+          setOutput(`PC: 0x${result.pc.toString(16).padStart(8, '0')}\n` + result.output);
         }
       },
     },

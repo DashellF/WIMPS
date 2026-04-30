@@ -126,14 +126,14 @@ const getThemeStyles = (theme: Theme) =>
     outerWrapper: {
       flex: 1,
       backgroundColor: theme.bg,
-      padding: 12,
+      padding: 10,
 
     },
     tableHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 14,
-      paddingBottom: 8,
+      paddingBottom: 4,
       gap: 8,
     },
     headerCell: {
@@ -146,10 +146,10 @@ const getThemeStyles = (theme: Theme) =>
       backgroundColor: theme.card,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      fontSize: 13,
+      borderRadius: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      fontSize: 12,
       color: theme.text,
       width: '100%',
     },

@@ -4,13 +4,13 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 export function MemoryView({ data, theme }: any) {
   return (
     <View style={[styles.outerCard, { backgroundColor: theme.bg, borderColor: theme.border }]}>
-      {/* HEADER SECTION */}
+      {/* HEADER SECTION 
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: theme.text }]}>System Memory</Text>
         </View>
         <Text style={[styles.subtitle, { color: theme.subText }]}>0x10010000 (Data)</Text>
-      </View>
+      </View> */}
 
       {/* INNER CONTENT CARD */}
       <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
