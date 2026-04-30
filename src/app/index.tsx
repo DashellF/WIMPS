@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Cookies from 'js-cookie';
 
 import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
@@ -108,6 +107,7 @@ export default function IdeScreen() {
   const [activeTab, setActiveTab] = useState<'editor' | 'registers' | 'console'>('editor');
   const [memoryData, setMemoryData] = useState<any[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [showHex, setShowHex] = useState(true);
 
   const [leftPanelPct, setLeftPanelPct] = useState(70);
   const [editorHeightPct, setEditorHeightPct] = useState(70);
@@ -303,15 +303,17 @@ export default function IdeScreen() {
     },
   }), [height]);
 
-  const toggleTheme = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsDarkMode((prev) => {
-      const nextMode = !prev;
-      // Save to cookie (expires in 365 days)
-      Cookies.set('theme', nextMode ? 'dark' : 'light', { expires: 365 });
-      return nextMode;
-    });
-  };
+  const toggleTheme = async () => {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
+  setIsDarkMode((prev) => {
+    const nextMode = !prev;
+
+    AsyncStorage.setItem('@theme', nextMode ? 'dark' : 'light');
+
+    return nextMode;
+  });
+};
 
   useEffect(() => {
     const saveCode = async () => {
@@ -333,7 +335,7 @@ export default function IdeScreen() {
       const savedCode = await AsyncStorage.getItem(STORAGE_KEY);
       if (savedCode) setCode(savedCode);
 
-      const savedTheme = Cookies.get('theme');
+      const savedTheme = await AsyncStorage.getItem('@theme');
       if (savedTheme) {
         setIsDarkMode(savedTheme === 'dark');
       }
@@ -446,7 +448,12 @@ export default function IdeScreen() {
                         onToggleMinimize={() => toggleWindow('registers')}
                         onMaximize={() => maximizeWindow('registers')}
                       >
-                        <RegisterPanel registers={registers} theme={activeTheme} />
+                        <RegisterPanel
+                          registers={registers}
+                          theme={activeTheme}
+                          showHex={showHex}
+                          toggleFormat={() => setShowHex(prev => !prev)}
+                        />
                       </WindowWrapper>
                     </Animated.View>
                   )}

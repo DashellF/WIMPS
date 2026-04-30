@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
@@ -19,9 +20,16 @@ export interface RegisterValue {
 interface RegisterPanelProps {
   registers: RegisterValue[];
   theme: Theme;
+  showHex?: boolean;
+  toggleFormat?: () => void;
 }
 
-export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
+export function RegisterPanel({
+  registers,
+  theme,
+  showHex = true,
+  toggleFormat,
+}: RegisterPanelProps) {
   const [query, setQuery] = useState('');
   const styles = getThemeStyles(theme);
 
@@ -41,26 +49,45 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
   return (
     <View style={styles.outerWrapper}>
       {/* OUTER HEADER SECTION */}
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: theme.text }]}>CPU Registers</Text>
-        </View>
-        
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Filter..."
-          placeholderTextColor={theme.subText}
-          style={styles.compactSearch}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <View style={styles.header}>
+    <View style={styles.titleRow}>
+      <Text style={[styles.title, { color: theme.text }]}>
+        CPU Registers
+      </Text>
+    </View>
+    {toggleFormat && (
+  <TouchableOpacity onPress={toggleFormat} style={styles.hexToggle}>
+    <Text style={{ color: theme.text, fontSize: 11 }}>
+      {showHex ? 'HEX' : 'INT'}
+    </Text>
+  </TouchableOpacity>
+)}
+
+    <View style={styles.searchContainer}>
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Filter registers..."
+        placeholderTextColor={theme.subText}
+        style={styles.compactSearch}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+    </View>
       </View>
 
       <View style={styles.tableHeader}>
         <Text style={[styles.headerCell, styles.nameColumn]}>Name</Text>
         <Text style={[styles.headerCell, styles.numColumn]}>#</Text>
-        <Text style={[styles.headerCell, styles.valueColumn]}>Hex Value</Text>
+        <TouchableOpacity
+          style={styles.valueColumn}
+          onPress={toggleFormat}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.headerCell, { textAlign: 'right' }]}>
+            {showHex ? 'Hex Value' : 'Int Value'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -83,7 +110,9 @@ export function RegisterPanel({ registers, theme }: RegisterPanelProps) {
                 style={[styles.rowText, styles.valueColumn, { color: theme.text, fontWeight: 'bold' }]}
                 numberOfLines={1}
               >
-                {register.hexValue}
+                {showHex
+                  ? register.hexValue
+                  : String(parseInt(register.hexValue, 16))}
               </Text>
             </View>
           ))}
@@ -104,22 +133,23 @@ const getThemeStyles = (theme: Theme) =>
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
+      flexWrap: 'wrap',
       alignItems: 'center',
       marginBottom: 16, // Increased margin for breathing room
       paddingHorizontal: 4,
     },
     compactSearch: {
-      backgroundColor: theme.card,
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,      // Slightly rounder
-      paddingHorizontal: 12, // More horizontal space inside
-      paddingVertical: 8,   // Taller box
-      fontSize: 13,         // Larger text for readability
-      color: theme.text,
-      width: '60%',         // Use a percentage so it grows with the panel
-      maxWidth: 180,        // But don't let it get too huge
-    },
+        backgroundColor: theme.card,
+        borderWidth: 1,
+        borderColor: theme.border,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        fontSize: 13,
+        color: theme.text,
+        width: '60%',
+        maxWidth: 180,
+      },
     titleRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -142,6 +172,10 @@ const getThemeStyles = (theme: Theme) =>
       fontWeight: '700',
       textTransform: 'uppercase',
     },
+    searchContainer: {
+  width: '60%',
+  maxWidth: 180,
+},
     innerCard: {
       flex: 1,
       borderRadius: 10,
@@ -183,4 +217,12 @@ const getThemeStyles = (theme: Theme) =>
       fontSize: 10,
       fontFamily: 'monospace',
     },
+hexToggle: {
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderWidth: 1,
+  borderColor: theme.border,
+  borderRadius: 6,
+  marginLeft: 8,
+},
   });
