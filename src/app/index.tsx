@@ -111,6 +111,22 @@ export default function IdeScreen() {
 
   const [leftPanelPct, setLeftPanelPct] = useState(70);
   const [editorHeightPct, setEditorHeightPct] = useState(70);
+  const [rightPanelHeightPct, setRightPanelHeightPct] = useState(55);
+
+  const panResponderRightVertical = useMemo(() => PanResponder.create({
+  onStartShouldSetPanResponder: () => true,
+  onPanResponderGrant: () => {
+    if (typeof document !== 'undefined') document.body.style.userSelect = 'none';
+  },
+  onPanResponderMove: (_, gestureState) => {
+    const availableHeight = height - 132;
+    const newPct = ((gestureState.moveY - 100) / availableHeight) * 100;
+    if (newPct > 10 && newPct < 90) setRightPanelHeightPct(newPct);
+  },
+  onPanResponderRelease: () => {
+    if (typeof document !== 'undefined') document.body.style.userSelect = '';
+  },
+}), [height]);
 
   const [minimized, setMinimized] = useState({
     editor: false,
@@ -441,7 +457,7 @@ export default function IdeScreen() {
               {(!minimized.registers || !minimized.memory) && (
                 <View style={[styles.sideColumn, { width: (minimized.editor && minimized.console) ? '100%' : `${100 - leftPanelPct}%` }]}>
                   {!minimized.registers && (
-                    <Animated.View style={[{ flex: 1 }, getGenieStyle('registers')]}>
+                    <Animated.View style={[{ flex: minimized.memory ? 1 : rightPanelHeightPct / 100 }, getGenieStyle('registers')]}>
                       <WindowWrapper 
                         title="Registers" 
                         theme={activeTheme} 
@@ -457,8 +473,13 @@ export default function IdeScreen() {
                       </WindowWrapper>
                     </Animated.View>
                   )}
+                  {!minimized.registers && !minimized.memory && (
+                    <View {...panResponderRightVertical.panHandlers} style={styles.resizerHorizontal}>
+                      <View style={tStyles.resizerHorizontalLine} />
+                    </View>
+                  )}
                   {!minimized.memory && (
-                    <Animated.View style={[{ flex: 1, marginTop: minimized.registers ? 0 : 12 }, getGenieStyle('memory')]}>
+                    <Animated.View style={[{ flex: minimized.registers ? 1 : (100 - rightPanelHeightPct) / 100 }, getGenieStyle('memory')]}>
                       <WindowWrapper 
                         title="Memory View" 
                         theme={activeTheme} 

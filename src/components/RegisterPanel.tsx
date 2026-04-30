@@ -48,30 +48,19 @@ export function RegisterPanel({
 
   return (
     <View style={styles.outerWrapper}>
-  {/* OUTER HEADER SECTION */}
-  <View style={styles.header}>
-    <View style={styles.titleRow}>
-      <Text style={[styles.title, { color: theme.text }]}>
-        CPU Registers
-      </Text>
-    </View>
-
-    <View style={styles.searchContainer}>
+  {/* TABLE HEADER */}
+  <View style={styles.tableHeader}>
+    <View style={styles.nameColumn}>
       <TextInput
         value={query}
         onChangeText={setQuery}
         placeholder="Filter registers..."
         placeholderTextColor={theme.subText}
-        style={styles.compactSearch}
+        style={styles.headerSearch}
         autoCapitalize="none"
         autoCorrect={false}
       />
     </View>
-  </View>
-
-  {/* TABLE HEADER */}
-  <View style={styles.tableHeader}>
-    <Text style={[styles.headerCell, styles.nameColumn]}>Name</Text>
 
     <Text style={[styles.headerCell, styles.numColumn]}>#</Text>
 
@@ -140,41 +129,12 @@ const getThemeStyles = (theme: Theme) =>
       padding: 12,
 
     },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      marginBottom: 16, // Increased margin for breathing room
-      paddingHorizontal: 4,
-    },
-    compactSearch: {
-        backgroundColor: theme.card,
-        borderWidth: 1,
-        borderColor: theme.border,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        fontSize: 13,
-        color: theme.text,
-        width: '60%',
-        maxWidth: 180,
-      },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    title: {
-      fontSize: 12,
-      fontWeight: '800',
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-    },
     tableHeader: {
       flexDirection: 'row',
+      alignItems: 'center',
       paddingHorizontal: 14,
       paddingBottom: 8,
+      gap: 8,
     },
     headerCell: {
       color: theme.subText,
@@ -182,10 +142,17 @@ const getThemeStyles = (theme: Theme) =>
       fontWeight: '700',
       textTransform: 'uppercase',
     },
-    searchContainer: {
-  width: '60%',
-  maxWidth: 180,
-},
+    headerSearch: {
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 13,
+      color: theme.text,
+      width: '100%',
+    },
     innerCard: {
       flex: 1,
       borderRadius: 10,
@@ -223,29 +190,17 @@ const getThemeStyles = (theme: Theme) =>
       fontWeight: '700',
       fontSize: 12,
     },
-    decimalText: {
-      fontSize: 10,
-      fontFamily: 'monospace',
+    modeButton: {
+      backgroundColor: '#2563eb',
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 8,
+      alignSelf: 'flex-end',
     },
-hexToggle: {
-  paddingHorizontal: 10,
-  paddingVertical: 4,
-  borderWidth: 1,
-  borderColor: theme.border,
-  borderRadius: 6,
-  marginLeft: 8,
-},
-modeButton: {
-  backgroundColor: '#2563eb',
-  paddingHorizontal: 6,
-  paddingVertical: 3,
-  borderRadius: 8,
-  alignSelf: 'flex-end',
-},
 
-modeButtonText: {
-  color: '#fff',
-  fontSize: 9,
-  fontWeight: '600',
-},
+    modeButtonText: {
+      color: '#fff',
+      fontSize: 9,
+      fontWeight: '600',
+    },
   });
