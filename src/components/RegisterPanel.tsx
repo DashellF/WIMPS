@@ -112,7 +112,7 @@ export function RegisterPanel({
               >
                 {showHex
                   ? register.hexValue
-                  : String(parseInt(register.hexValue, 16))}
+                  : (parseInt(register.hexValue, 16) | 0).toString()}
               </Text>
             </View>
           ))}
