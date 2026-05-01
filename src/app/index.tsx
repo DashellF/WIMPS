@@ -10,6 +10,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   UIManager,
   View,
@@ -71,17 +72,120 @@ const buildInitialRegisters = (): RegisterValue[] => {
   return names.map((name, index) => ({ name, number: index, hexValue: '0x00000000' }));
 };
 
-const TabItem = ({ label, onPress }: { label: string; onPress: () => void }) => (
-  <TouchableOpacity style={styles.tab} onPress={onPress}>
-    <Text style={styles.tabText}>{label}</Text>
+const TabItem = ({ label, onPress, isDarkMode }: { label: string; onPress: () => void; isDarkMode: boolean }) => (
+  <TouchableOpacity 
+    style={[
+      styles.tab, 
+      { 
+        backgroundColor: isDarkMode ? '#1e3a8a' : '#f8fafc',
+        borderColor: isDarkMode ? '#60a5fa' : '#cbd5e1'
+      }
+    ]} 
+    onPress={onPress}
+  >
+    <Text style={[styles.tabText, { color: isDarkMode ? '#60a5fa' : '#334155' }]}>{label}</Text>
   </TouchableOpacity>
 );
+
+interface CodeTab {
+  id: string;
+  name: string;
+  code: string;
+}
 
 export default function IdeScreen() {
   const { height, width } = useWindowDimensions();
   const isWide = width >= 1000;
 
-  const [code, setCode] = useState('');
+  // --- Tab & Code State ---
+  const [tabs, setTabs] = useState<CodeTab[]>([{ id: '1', name: 'main.asm', code: '' }]);
+  const [activeTabId, setActiveTabId] = useState<string>('1');
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editTabName, setEditTabName] = useState<string>('');
+  const lastTapRef = useRef<{ id: string; time: number } | null>(null);
+  
+  const activeCode = useMemo(() => {
+    return tabs.find(t => t.id === activeTabId)?.code || '';
+  }, [tabs, activeTabId]);
+
+  const setCode = (newCode: string) => {
+    setTabs(prev => prev.map(tab => tab.id === activeTabId ? { ...tab, code: newCode } : tab));
+  };
+
+  const addTab = () => {
+    const newId = Date.now().toString();
+    const newTab = { id: newId, name: `file${tabs.length + 1}.asm`, code: '' };
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newId);
+  };
+
+  const closeTab = (idToClose: string) => {
+    if (tabs.length === 1) return; // Prevent closing the last tab
+    setTabs(prev => {
+      const newTabs = prev.filter(t => t.id !== idToClose);
+      if (activeTabId === idToClose) {
+        setActiveTabId(newTabs[0].id);
+      }
+      return newTabs;
+    });
+  };
+
+  const handleTabPress = (tabId: string) => {
+    const now = Date.now();
+    if (lastTapRef.current && lastTapRef.current.id === tabId && (now - lastTapRef.current.time) < 300) {
+      setEditingTabId(tabId);
+      const tab = tabs.find(t => t.id === tabId);
+      if (tab) setEditTabName(tab.name);
+      lastTapRef.current = null;
+    } else {
+      setActiveTabId(tabId);
+      lastTapRef.current = { id: tabId, time: now };
+    }
+  };
+
+  const finishEditingTab = (tabId: string) => {
+    if (editTabName.trim()) {
+      setTabs(prev => prev.map(t => t.id === tabId ? { ...t, name: editTabName.trim() } : t));
+    }
+    setEditingTabId(null);
+  };
+
+  // --- Web Upload/Download Handlers ---
+  const handleDownload = () => {
+    if (Platform.OS === 'web') {
+      const activeTab = tabs.find(t => t.id === activeTabId);
+      if (!activeTab) return;
+      const blob = new Blob([activeTab.code], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = activeTab.name || 'code.asm';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleUpload = () => {
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.asm,.s,.txt';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          const newId = Date.now().toString();
+          setTabs(prev => [...prev, { id: newId, name: file.name, code: content }]);
+          setActiveTabId(newId);
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+  };
+
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('Program output will appear here.');
   const [memoryData, setMemoryData] = useState<any[]>([]);
@@ -91,7 +195,6 @@ export default function IdeScreen() {
   // Layout Percentages
   const [leftPanelPct, setLeftPanelPct] = useState(70);
   const [editorHeightPct, setEditorHeightPct] = useState(65);
-  // ✅ Split percentage for registers vs memory in the side column
   const [sideHeightPct, setSideHeightPct] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -105,12 +208,11 @@ export default function IdeScreen() {
   // Refs for measuring column positions
   const editorColumnRef = useRef<View>(null);
   const editorColumnLayout = useRef({ y: 0, height: 0 });
-
-  // ✅ Ref for the side column so we can resize registers/memory too
   const sideColumnRef = useRef<View>(null);
   const sideColumnLayout = useRef({ y: 0, height: 0 });
 
-  const STORAGE_KEY = '@mips_editor_code';
+  const STORAGE_TABS_KEY = '@mips_editor_tabs';
+  const STORAGE_ACTIVE_TAB_KEY = '@mips_editor_active_tab';
 
   const toggleWindow = (key: keyof typeof minimized) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -133,7 +235,7 @@ export default function IdeScreen() {
   const editorActions = useMemo(() => [
     {
       label: 'Assemble', icon: require('../../assets/images/assemble_icon.png'), onPress: () => {
-        const result = assemble(code);
+        const result = assemble(activeCode);
         if (!result.ok) setOutput(`Assembly error:\n${result.error}`);
         else { setRegisters(getState()?.registers || []); updateMemory(); setOutput('Assembled successfully.'); }
       }
@@ -157,7 +259,7 @@ export default function IdeScreen() {
         resetSim(); setRegisters(buildInitialRegisters()); setOutput('Reset.');
       }
     },
-  ], [code]);
+  ], [activeCode]);
 
   const panResponderHorizontal = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -189,7 +291,6 @@ export default function IdeScreen() {
     onPanResponderTerminate: () => setIsResizing(false),
   }), []);
 
-  // ✅ Vertical resizer for the side column (registers vs memory)
   const panResponderSideVertical = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
@@ -221,15 +322,29 @@ export default function IdeScreen() {
 
   useEffect(() => {
     const loadSettings = async () => {
-      const savedCode = await AsyncStorage.getItem(STORAGE_KEY);
-      if (savedCode) setCode(savedCode);
-      const savedTheme = Cookies.get('theme');
-      if (savedTheme) setIsDarkMode(savedTheme === 'dark');
+      try {
+        const savedTabs = await AsyncStorage.getItem(STORAGE_TABS_KEY);
+        const savedActiveTabId = await AsyncStorage.getItem(STORAGE_ACTIVE_TAB_KEY);
+        
+        if (savedTabs) {
+          const parsedTabs = JSON.parse(savedTabs);
+          if (parsedTabs.length > 0) setTabs(parsedTabs);
+        }
+        if (savedActiveTabId) setActiveTabId(savedActiveTabId);
+
+        const savedTheme = Cookies.get('theme');
+        if (savedTheme) setIsDarkMode(savedTheme === 'dark');
+      } catch (e) {
+        console.error('Failed to load settings', e);
+      }
     };
     loadSettings();
   }, []);
 
-  useEffect(() => { if (code) AsyncStorage.setItem(STORAGE_KEY, code); }, [code]);
+  useEffect(() => { 
+    AsyncStorage.setItem(STORAGE_TABS_KEY, JSON.stringify(tabs));
+    AsyncStorage.setItem(STORAGE_ACTIVE_TAB_KEY, activeTabId);
+  }, [tabs, activeTabId]);
 
   const updateMemory = () => setMemoryData(getMemoryRange(0x10010000, 20));
 
@@ -246,10 +361,10 @@ export default function IdeScreen() {
             />
             <View style={styles.minimizedTray}>
               {minimized.editor && minimized.console && (
-                <TabItem label="Editor & Console" onPress={() => setMinimized(p => ({ ...p, editor: false, console: false }))} />
+                <TabItem label="Editor & Console" isDarkMode={isDarkMode} onPress={() => setMinimized(p => ({ ...p, editor: false, console: false }))} />
               )}
               {minimized.registers && minimized.memory && (
-                <TabItem label="Registers & Memory" onPress={() => setMinimized(p => ({ ...p, registers: false, memory: false }))} />
+                <TabItem label="Registers & Memory" isDarkMode={isDarkMode} onPress={() => setMinimized(p => ({ ...p, registers: false, memory: false }))} />
               )}
             </View>
             <View style={styles.topBarActions}>
@@ -284,7 +399,123 @@ export default function IdeScreen() {
                       : { height: 40 }
                     }
                   >
-                    <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
+                    {/* --- Editor Tabs Bar --- */}
+                    {!minimized.editor && (
+                      <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+                        
+                        {/* Wheel Event Catcher for Web Horizontal Scrolling */}
+                        <ScrollView 
+                          horizontal 
+                          showsHorizontalScrollIndicator={false} 
+                          style={{ flex: 1 }}
+                          ref={(ref) => {
+                            // Grab the DOM node and apply mouse wheel to scrollLeft
+                            if (Platform.OS === 'web' && ref) {
+                              const node = (ref as any).getScrollableNode();
+                              if (node) {
+                                node.onwheel = (e: any) => {
+                                  e.preventDefault();
+                                  node.scrollLeft += e.deltaY;
+                                };
+                              }
+                            }
+                          }}
+                        >
+                          {tabs.map((tab) => (
+                            <View 
+                              key={tab.id} 
+                              style={[
+                                styles.editorTab, 
+                                { borderColor: activeTabId === tab.id ? '#3b82f6' : 'transparent' }
+                              ]}
+                            >
+                              <TouchableOpacity onPress={() => handleTabPress(tab.id)}>
+                                {editingTabId === tab.id ? (
+                                  <TextInput
+                                    autoFocus
+                                    value={editTabName}
+                                    onChangeText={setEditTabName}
+                                    onBlur={() => finishEditingTab(tab.id)}
+                                    onSubmitEditing={() => finishEditingTab(tab.id)}
+                                    style={{ 
+                                      color: activeTheme.text, 
+                                      fontWeight: '600', 
+                                      marginRight: 8, 
+                                      padding: 0, 
+                                      minWidth: 60,
+                                      borderBottomWidth: 1,
+                                      borderColor: activeTheme.text 
+                                    }}
+                                  />
+                                ) : (
+                                  <Text style={{ 
+                                    color: activeTabId === tab.id ? activeTheme.text : activeTheme.subText, 
+                                    fontWeight: activeTabId === tab.id ? '600' : '400', 
+                                    marginRight: 8 
+                                  }}>
+                                    {tab.name}
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                              {tabs.length > 1 && (
+                                <TouchableOpacity onPress={() => closeTab(tab.id)} style={{ padding: 4 }}>
+                                  <Text style={{ color: activeTheme.subText, fontSize: 10 }}>✕</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          ))}
+                        </ScrollView>
+
+                        {/* --- Tab Action Buttons --- */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          
+                          {/* Upload Button */}
+                          <TouchableOpacity onPress={handleUpload} style={styles.tabActionBtn}>
+                            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↑</Text>
+                              {/* Bottom Bracket (Thinner) */}
+                              <View style={{ 
+                                width: 14, 
+                                height: 4, 
+                                borderBottomWidth: 1.5, 
+                                borderLeftWidth: 1.5, 
+                                borderRightWidth: 1.5, 
+                                borderColor: activeTheme.text, 
+                                marginTop: 2 
+                              }} />
+                            </View>
+                          </TouchableOpacity>
+
+                          {/* Download Button */}
+                          <TouchableOpacity onPress={handleDownload} style={styles.tabActionBtn}>
+                            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↓</Text>
+                              {/* Bottom Bracket (Thinner) */}
+                              <View style={{ 
+                                width: 14, 
+                                height: 4, 
+                                borderBottomWidth: 1.5, 
+                                borderLeftWidth: 1.5, 
+                                borderRightWidth: 1.5, 
+                                borderColor: activeTheme.text, 
+                                marginTop: 2 
+                              }} />
+                            </View>
+                          </TouchableOpacity>
+
+                          {/* Add Tab Button */}
+                          <TouchableOpacity onPress={addTab} style={styles.tabActionBtn}>
+                            <Text style={{ color: activeTheme.text, fontWeight: '600', fontSize: 16 }}>+</Text>
+                          </TouchableOpacity>
+
+                        </View>
+                        {/* ------------------------ */}
+
+                      </View>
+                    )}
+                    {/* ---------------------- */}
+
+                    <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
 
                   {!minimized.editor && !minimized.console && (
@@ -320,12 +551,10 @@ export default function IdeScreen() {
               )}
 
               {(!minimized.registers || !minimized.memory) && (
-                // ✅ Attach ref to side column for measurement
                 <View
                   ref={sideColumnRef}
                   style={[styles.sideColumn, { width: (minimized.editor && minimized.console) ? '100%' : `${100 - leftPanelPct}%` }]}
                 >
-                  {/* ✅ Explicit height so registers doesn't grow unbounded */}
                   <WindowWrapper
                     title="Registers"
                     theme={activeTheme}
@@ -340,14 +569,12 @@ export default function IdeScreen() {
                     <RegisterPanel registers={registers} theme={activeTheme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />
                   </WindowWrapper>
 
-                  {/* ✅ Resizer between registers and memory */}
                   {!minimized.registers && !minimized.memory && (
                     <View {...panResponderSideVertical.panHandlers} style={styles.resizerHorizontal}>
                       <View style={tStyles.resizerHorizontalLine} />
                     </View>
                   )}
 
-                  {/* ✅ Explicit height so memory is strictly bounded */}
                   <WindowWrapper
                     title="Memory View"
                     theme={activeTheme}
@@ -366,7 +593,7 @@ export default function IdeScreen() {
             </View>
           ) : (
             <View style={styles.mobileContent}>
-              <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
+              <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
             </View>
           )}
         </View>
@@ -405,4 +632,7 @@ const styles = StyleSheet.create({
   switchTrack: { width: 58, height: 32, borderRadius: 16, borderWidth: 2, justifyContent: 'center' },
   switchThumb: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   switchIcon: { fontSize: 12, fontWeight: 'bold' },
+  editorTabBar: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'center', justifyContent: 'space-between' },
+  editorTab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2 },
+  tabActionBtn: { paddingHorizontal: 16, paddingVertical: 8, borderLeftWidth: 1, borderColor: 'rgba(150, 150, 150, 0.2)', alignItems: 'center', justifyContent: 'center' },
 });
