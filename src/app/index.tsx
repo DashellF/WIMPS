@@ -32,7 +32,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// Custom Animated Switch Component
+// --- Theme Switch Component ---
 interface ThemeSwitchProps {
   isDark: boolean;
   toggle: () => void;
@@ -136,6 +136,20 @@ export default function IdeScreen() {
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
+
+  // --- Logic for Deep Minimization ---
+  const isLeftGroupMinimized = minimized.editor && minimized.console;
+  const isRightGroupMinimized = minimized.registers && minimized.memory;
+
+  const TabItem = ({ label, onPress }: { label: string, onPress: () => void }) => (
+    <TouchableOpacity 
+      activeOpacity={0.7}
+      onPress={onPress}
+      style={[styles.tab, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}
+    >
+    <Text style={[styles.tabText, { color: activeTheme.text }]}>{label}</Text>
+    </TouchableOpacity>
+  );
 
   const editorActions = useMemo(() => [
     {
@@ -250,12 +264,36 @@ export default function IdeScreen() {
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>
           
-          {/* TOP BAR */}
-          <View style={styles.topBar}>
-            <Image 
-              source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} 
-              style={styles.logo}  
+          {/* TOP BAR */}<View style={styles.topBar}>
+        <Image 
+          source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} 
+          style={styles.logo}  
+        />
+
+        {/* Minimized Tray with Combined Labels */}
+        <View style={styles.minimizedTray}>
+          {isLeftGroupMinimized && (
+            <TabItem 
+              label="Editor & Console" 
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setMinimized(prev => ({ ...prev, editor: false, console: false }));
+              }} 
             />
+          )}
+          {isRightGroupMinimized && (
+            <TabItem 
+              label="Registers & Memory" 
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setMinimized(prev => ({ ...prev, registers: false, memory: false }));
+              }} 
+            />
+          )}
+        </View>
+
+
+
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
               <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/docs', '_self')}>
@@ -269,77 +307,83 @@ export default function IdeScreen() {
 
           {isWide ? (
             <View style={styles.desktopContent}>
-              {/* LEFT COLUMN */}
-              <View style={[styles.editorColumn, { width: `${leftPanelPct}%` }]}>
-                <WindowWrapper 
-                  title="MIPS Editor" 
-                  theme={activeTheme} 
-                  isMinimized={minimized.editor}
-                  onToggleMinimize={() => toggleWindow('editor')}
-                  onMaximize={() => maximizeWindow('editor')}
-                >
-                  <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
-                </WindowWrapper>
+              {/* LEFT COLUMN - Deep hide only if both are minimized */}
+              {!isLeftGroupMinimized && (
+                <View style={[styles.editorColumn, { width: isRightGroupMinimized ? '100%' : `${leftPanelPct}%` }]}>
+                  <WindowWrapper 
+                    title="MIPS Editor" 
+                    theme={activeTheme} 
+                    isMinimized={minimized.editor}
+                    onToggleMinimize={() => toggleWindow('editor')}
+                    onMaximize={() => maximizeWindow('editor')}
+                  >
+                    <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
+                  </WindowWrapper>
 
-                {!minimized.editor && !minimized.console && (
-                  <View {...panResponderVertical.panHandlers} style={styles.resizerHorizontal}>
-                    <View style={tStyles.resizerHorizontalLine} />
-                  </View>
-                )}
+                  {!minimized.editor && !minimized.console && (
+                    <View {...panResponderVertical.panHandlers} style={styles.resizerHorizontal}>
+                      <View style={tStyles.resizerHorizontalLine} />
+                    </View>
+                  )}
 
-                <WindowWrapper 
-                  title="Console Output" 
-                  theme={activeTheme} 
-                  isMinimized={minimized.console}
-                  onToggleMinimize={() => toggleWindow('console')}
-                  onMaximize={() => maximizeWindow('console')}
-                >
-                  <View style={[tStyles.consoleCard, { flex: 1 }]}>
-                    <ScrollView style={styles.consoleOutput} showsVerticalScrollIndicator={true}>
-                      <Text style={tStyles.consoleText}>{output}</Text>
-                    </ScrollView>
-                  </View>
-                </WindowWrapper>
-              </View>
+                  <WindowWrapper 
+                    title="Console Output" 
+                    theme={activeTheme} 
+                    isMinimized={minimized.console}
+                    onToggleMinimize={() => toggleWindow('console')}
+                    onMaximize={() => maximizeWindow('console')}
+                  >
+                    <View style={[tStyles.consoleCard, { flex: 1 }]}>
+                      <ScrollView style={styles.consoleOutput} showsVerticalScrollIndicator={true}>
+                        <Text style={tStyles.consoleText}>{output}</Text>
+                      </ScrollView>
+                    </View>
+                  </WindowWrapper>
+                </View>
+              )}
 
-              {/* VERTICAL RESIZER */}
-              <View {...panResponderHorizontal.panHandlers} style={styles.resizerVertical}>
-                <View style={tStyles.resizerVerticalLine} />
-              </View>
+              {/* VERTICAL RESIZER - Hide if either side is deep minimized */}
+              {!isLeftGroupMinimized && !isRightGroupMinimized && (
+                <View {...panResponderHorizontal.panHandlers} style={styles.resizerVertical}>
+                  <View style={tStyles.resizerVerticalLine} />
+                </View>
+              )}
 
-              {/* RIGHT COLUMN */}
-              <View style={[styles.sideColumn, { width: `${100 - leftPanelPct}%` }]}>
-                <WindowWrapper 
-                  title="Registers" 
-                  theme={activeTheme} 
-                  isMinimized={minimized.registers}
-                  onToggleMinimize={() => toggleWindow('registers')}
-                  onMaximize={() => maximizeWindow('registers')}
-                >
-                  <RegisterPanel
-                    registers={registers}
-                    theme={activeTheme}
-                    showHex={showHex}
-                    toggleFormat={() => setShowHex(prev => !prev)}
-                  />
-                </WindowWrapper>
+              {/* RIGHT COLUMN - Deep hide only if both are minimized */}
+              {!isRightGroupMinimized && (
+                <View style={[styles.sideColumn, { width: isLeftGroupMinimized ? '100%' : `${100 - leftPanelPct}%` }]}>
+                  <WindowWrapper 
+                    title="Registers" 
+                    theme={activeTheme} 
+                    isMinimized={minimized.registers}
+                    onToggleMinimize={() => toggleWindow('registers')}
+                    onMaximize={() => maximizeWindow('registers')}
+                  >
+                    <RegisterPanel
+                      registers={registers}
+                      theme={activeTheme}
+                      showHex={showHex}
+                      toggleFormat={() => setShowHex(prev => !prev)}
+                    />
+                  </WindowWrapper>
 
-                {!minimized.registers && !minimized.memory && (
-                  <View {...panResponderRightVertical.panHandlers} style={styles.resizerHorizontal}>
-                    <View style={tStyles.resizerHorizontalLine} />
-                  </View>
-                )}
+                  {!minimized.registers && !minimized.memory && (
+                    <View {...panResponderRightVertical.panHandlers} style={styles.resizerHorizontal}>
+                      <View style={tStyles.resizerHorizontalLine} />
+                    </View>
+                  )}
 
-                <WindowWrapper 
-                  title="Memory View" 
-                  theme={activeTheme} 
-                  isMinimized={minimized.memory}
-                  onToggleMinimize={() => toggleWindow('memory')}
-                  onMaximize={() => maximizeWindow('memory')}
-                >
-                  <MemoryView data={memoryData} theme={activeTheme} />
-                </WindowWrapper>
-              </View>
+                  <WindowWrapper 
+                    title="Memory View" 
+                    theme={activeTheme} 
+                    isMinimized={minimized.memory}
+                    onToggleMinimize={() => toggleWindow('memory')}
+                    onMaximize={() => maximizeWindow('memory')}
+                  >
+                    <MemoryView data={memoryData} theme={activeTheme} />
+                  </WindowWrapper>
+                </View>
+              )}
             </View>
           ) : (
             <View style={styles.mobileContent}>
@@ -364,8 +408,32 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12 },
-  logo: { width: 240, height: 44, resizeMode: 'contain' },
+  topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
+  logo: { width: 200, height: 44, resizeMode: 'contain' },
+  minimizedTray: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
   topBarActions: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   primaryButton: { backgroundColor: '#2563eb', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   primaryButtonText: { color: '#ffffff', fontWeight: '600' },
