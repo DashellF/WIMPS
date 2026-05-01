@@ -213,14 +213,14 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     minHeight: '100%'
   },
    floatingMenuArea: {
-  position: 'absolute',
-  top: 10,
-  right: 10,
-  zIndex: 20,
-  elevation: 10,
-  alignItems: 'flex-end',
-  marginTop: 10,
-  marginRight: 10
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 20,
+    elevation: 10,
+    alignItems: 'flex-end',
+    marginTop: 10,
+    marginRight: 10
 },
 
   floatingActionsRow: {
@@ -230,25 +230,25 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
   },
 
   floatingActionButton: {
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    backgroundColor: theme.bg,
     width: 44,
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: theme.border
   },
 
 menuToggleButton: {
-  backgroundColor: 'rgba(15, 23, 42, 0.82)',
+  backgroundColor: theme.bg,
   width: 44,
   height: 44,
   justifyContent: 'center',
   alignItems: 'center',
   borderRadius: 10,
   borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.08)',
+  borderColor: theme.border
 },
 chevronImage: {
   width: 28,
