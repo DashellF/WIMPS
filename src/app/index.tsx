@@ -91,6 +91,8 @@ export default function IdeScreen() {
   // Layout Percentages
   const [leftPanelPct, setLeftPanelPct] = useState(70);
   const [editorHeightPct, setEditorHeightPct] = useState(65);
+  // ✅ Split percentage for registers vs memory in the side column
+  const [sideHeightPct, setSideHeightPct] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
 
   const [minimized, setMinimized] = useState({
@@ -100,9 +102,13 @@ export default function IdeScreen() {
     memory: false,
   });
 
-  // ✅ Ref to measure the editor column's actual on-screen position and height
+  // Refs for measuring column positions
   const editorColumnRef = useRef<View>(null);
   const editorColumnLayout = useRef({ y: 0, height: 0 });
+
+  // ✅ Ref for the side column so we can resize registers/memory too
+  const sideColumnRef = useRef<View>(null);
+  const sideColumnLayout = useRef({ y: 0, height: 0 });
 
   const STORAGE_KEY = '@mips_editor_code';
 
@@ -163,37 +169,46 @@ export default function IdeScreen() {
     onPanResponderRelease: () => setIsResizing(false),
   }), [width]);
 
-  // ✅ Fixed vertical pan responder: measure the column's real Y offset on grant,
-  //    then compute percentage relative to the column height — not the full screen.
   const panResponderVertical = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-
     onPanResponderGrant: () => {
       setIsResizing(true);
-      // Capture the column's current position in window coordinates
       editorColumnRef.current?.measureInWindow((x, y, w, h) => {
         editorColumnLayout.current = { y, height: h };
       });
     },
-
     onPanResponderMove: (_, gestureState) => {
       const { y: colY, height: colH } = editorColumnLayout.current;
-      if (colH === 0) return; // Layout not measured yet — skip
-
-      // gestureState.moveY is absolute; subtract column's top to get relative position
+      if (colH === 0) return;
       const relativeY = gestureState.moveY - colY;
       const newPct = (relativeY / colH) * 100;
-
-      // Clamp: editor must be at least 15% and at most 85% of the column
-      if (newPct > 15 && newPct < 85) {
-        setEditorHeightPct(newPct);
-      }
+      if (newPct > 15 && newPct < 85) setEditorHeightPct(newPct);
     },
-
     onPanResponderRelease: () => setIsResizing(false),
     onPanResponderTerminate: () => setIsResizing(false),
-  }), []); // ✅ No dependencies needed — we read live values via ref
+  }), []);
+
+  // ✅ Vertical resizer for the side column (registers vs memory)
+  const panResponderSideVertical = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      setIsResizing(true);
+      sideColumnRef.current?.measureInWindow((x, y, w, h) => {
+        sideColumnLayout.current = { y, height: h };
+      });
+    },
+    onPanResponderMove: (_, gestureState) => {
+      const { y: colY, height: colH } = sideColumnLayout.current;
+      if (colH === 0) return;
+      const relativeY = gestureState.moveY - colY;
+      const newPct = (relativeY / colH) * 100;
+      if (newPct > 15 && newPct < 85) setSideHeightPct(newPct);
+    },
+    onPanResponderRelease: () => setIsResizing(false),
+    onPanResponderTerminate: () => setIsResizing(false),
+  }), []);
 
   const toggleTheme = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -217,9 +232,8 @@ export default function IdeScreen() {
   useEffect(() => { if (code) AsyncStorage.setItem(STORAGE_KEY, code); }, [code]);
 
   const updateMemory = () => setMemoryData(getMemoryRange(0x10010000, 20));
-  console.log({ PageWrapper, SafeAreaView, WindowWrapper, CodeEditor, MemoryView, RegisterPanel, TabItem });
+
   return (
-    
     <PageWrapper>
       <SafeAreaView style={[tStyles.safeArea, isResizing && styles.noSelect]}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
@@ -252,7 +266,6 @@ export default function IdeScreen() {
           {isWide ? (
             <View style={styles.desktopContent}>
               {(!minimized.editor || !minimized.console) && (
-                // ✅ Attach ref here so we can measure this column's real position
                 <View
                   ref={editorColumnRef}
                   style={[
@@ -267,19 +280,15 @@ export default function IdeScreen() {
                     onToggleMinimize={() => toggleWindow('editor')}
                     onMaximize={() => maximizeWindow('editor')}
                     style={!minimized.editor
-                      ? { height: minimized.console ? '100%' : `${editorHeightPct}%` }
+                      ? { height: minimized.console ? 'calc(100% - 24px)' : `${editorHeightPct}%` }
                       : { height: 40 }
                     }
                   >
                     <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
 
-                  {/* ✅ Only show resizer when both panels are visible */}
                   {!minimized.editor && !minimized.console && (
-                    <View
-                      {...panResponderVertical.panHandlers}
-                      style={styles.resizerHorizontal}
-                    >
+                    <View {...panResponderVertical.panHandlers} style={styles.resizerHorizontal}>
                       <View style={tStyles.resizerHorizontalLine} />
                     </View>
                   )}
@@ -291,8 +300,8 @@ export default function IdeScreen() {
                     onToggleMinimize={() => toggleWindow('console')}
                     onMaximize={() => maximizeWindow('console')}
                     style={!minimized.console
-                      ? { height: minimized.editor ? '100%' : `${100 - editorHeightPct}%` }
-                      : { height: 40 }
+                      ? { height: minimized.editor ? '100%' : `${100 - editorHeightPct}%`}
+                      : { height: 40}
                     }
                   >
                     <View style={[tStyles.consoleCard, { flex: 1 }]}>
@@ -311,22 +320,44 @@ export default function IdeScreen() {
               )}
 
               {(!minimized.registers || !minimized.memory) && (
-                <View style={[styles.sideColumn, { width: (minimized.editor && minimized.console) ? '100%' : `${100 - leftPanelPct}%` }]}>
+                // ✅ Attach ref to side column for measurement
+                <View
+                  ref={sideColumnRef}
+                  style={[styles.sideColumn, { width: (minimized.editor && minimized.console) ? '100%' : `${100 - leftPanelPct}%` }]}
+                >
+                  {/* ✅ Explicit height so registers doesn't grow unbounded */}
                   <WindowWrapper
                     title="Registers"
                     theme={activeTheme}
                     isMinimized={minimized.registers}
                     onToggleMinimize={() => toggleWindow('registers')}
                     onMaximize={() => maximizeWindow('registers')}
+                    style={!minimized.registers
+                      ? { height: minimized.memory ? 'calc(100% - 24px)' : `${sideHeightPct}%` }
+                      : { height: 40 }
+                    }
                   >
                     <RegisterPanel registers={registers} theme={activeTheme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />
                   </WindowWrapper>
+
+                  {/* ✅ Resizer between registers and memory */}
+                  {!minimized.registers && !minimized.memory && (
+                    <View {...panResponderSideVertical.panHandlers} style={styles.resizerHorizontal}>
+                      <View style={tStyles.resizerHorizontalLine} />
+                    </View>
+                  )}
+
+                  {/* ✅ Explicit height so memory is strictly bounded */}
                   <WindowWrapper
                     title="Memory View"
                     theme={activeTheme}
                     isMinimized={minimized.memory}
                     onToggleMinimize={() => toggleWindow('memory')}
                     onMaximize={() => maximizeWindow('memory')}
+                    style={!minimized.memory
+                      ? { height: minimized.registers ? '100%' : `${100 - sideHeightPct}%` }
+                      : { height: 40 }
+                    }
                   >
                     <MemoryView data={memoryData} theme={activeTheme} />
                   </WindowWrapper>
@@ -365,7 +396,7 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: '#2563eb', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   primaryButtonText: { color: '#ffffff', fontWeight: '600' },
   desktopContent: { flex: 1, flexDirection: 'row' },
-  editorColumn: { height: '100%', paddingRight: 4 },
+  editorColumn: { height: '100%', paddingRight: 4, paddingBottom: 12 },
   sideColumn: { height: '100%', paddingLeft: 4 },
   resizerVertical: { width: 16, justifyContent: 'center', alignItems: 'center', cursor: 'col-resize' as any },
   resizerHorizontal: { height: 16, justifyContent: 'center', alignItems: 'center', cursor: 'row-resize' as any, zIndex: 10 },

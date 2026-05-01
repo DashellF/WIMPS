@@ -4,27 +4,21 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 export function MemoryView({ data, theme }: any) {
   return (
     <View style={[styles.outerCard, { backgroundColor: theme.bg, borderColor: theme.border }]}>
-      {/* HEADER SECTION 
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: theme.text }]}>System Memory</Text>
-        </View>
-        <Text style={[styles.subtitle, { color: theme.subText }]}>0x10010000 (Data)</Text>
-      </View> */}
-
-      {/* INNER CONTENT CARD */}
       <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={true}
+          contentContainerStyle={styles.scrollContent}
+          // ✅ Prevents ScrollView from expanding to fit all content —
+          //    it will scroll within the available space instead
+          style={styles.scrollView}
+        >
           {data.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.subText }]}>Awaiting run...</Text>
           ) : (
             data.map((item: any, index: number) => (
-              <View 
-                key={index} 
-                style={[
-                  styles.row, 
-                  { borderBottomColor: theme.border + '22' } 
-                ]}
+              <View
+                key={index}
+                style={[styles.row, { borderBottomColor: theme.border + '22' }]}
               >
                 <Text style={[styles.addr, { color: theme.subText }]}>{item.address}</Text>
                 <Text style={[styles.val, { color: theme.text }]}>{item.value}</Text>
@@ -39,36 +33,24 @@ export function MemoryView({ data, theme }: any) {
 
 const styles = StyleSheet.create({
   outerCard: {
+    // ✅ flex: 1 lets it fill parent, but minHeight: 0 is the critical fix —
+    //    without it, flex children in RN can expand past their parent's bounds
     flex: 1,
-    padding: 12
-  },
-  header: {
-    marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingHorizontal: 4,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  subtitle: {
-    fontSize: 10,
-    fontFamily: 'monospace',
+    minHeight: 0,
+    padding: 12,
   },
   innerCard: {
+    // ✅ Same here: flex: 1 + minHeight: 0 so this doesn't blow out its container
     flex: 1,
+    minHeight: 0,
     borderRadius: 10,
     borderWidth: 1,
-    overflow: 'hidden', // Ensures scroll content doesn't bleed over corners
+    overflow: 'hidden',
+  },
+  // ✅ ScrollView itself also needs flex: 1 + minHeight: 0 to stay within innerCard
+  scrollView: {
+    flex: 1,
+    minHeight: 0,
   },
   scrollContent: {
     padding: 4,
@@ -94,5 +76,5 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 11,
     fontStyle: 'italic',
-  }
+  },
 });
