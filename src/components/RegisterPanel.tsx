@@ -54,7 +54,7 @@ export function RegisterPanel({
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Search . . ."
+        placeholder="Filter registers..."
         placeholderTextColor={theme.subText}
         style={styles.headerSearch}
         autoCapitalize="none"
@@ -82,7 +82,7 @@ export function RegisterPanel({
     <ScrollView
       style={styles.list}
       contentContainerStyle={styles.listContent}
-      showsVerticalScrollIndicator={false}
+      showsVerticalScrollIndicator={true}
     >
       {filteredRegisters.map((register) => (
         <View
@@ -132,7 +132,7 @@ const getThemeStyles = (theme: Theme) =>
     tableHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 14,
+      paddingRight: 14,
       paddingBottom: 4,
       gap: 8,
     },
@@ -141,6 +141,7 @@ const getThemeStyles = (theme: Theme) =>
       fontSize: 10,
       fontWeight: '700',
       textTransform: 'uppercase',
+      paddingLeft: 8
     },
     headerSearch: {
       backgroundColor: theme.card,
@@ -180,7 +181,7 @@ const getThemeStyles = (theme: Theme) =>
       flex: 1.2,
     },
     numColumn: {
-      width: 30,
+      width: 30
     },
     valueColumn: {
       flex: 1.4,
@@ -194,13 +195,13 @@ const getThemeStyles = (theme: Theme) =>
       backgroundColor: '#2563eb',
       paddingHorizontal: 6,
       paddingVertical: 3,
-      borderRadius: 9,
+      borderRadius: 8,
       alignSelf: 'flex-end',
     },
 
     modeButtonText: {
       color: '#fff',
-      fontSize: 11,
+      fontSize: 9,
       fontWeight: '600',
     },
   });

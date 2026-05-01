@@ -450,7 +450,7 @@ export default function IdeScreen() {
                         onMaximize={() => maximizeWindow('console')}
                       >
                         <View style={[tStyles.consoleCard, { flex: 1 }]}>
-                          <ScrollView style={styles.consoleOutput} showsVerticalScrollIndicator={false}>
+                          <ScrollView style={styles.consoleOutput} showsVerticalScrollIndicator={true}>
                             <Text style={tStyles.consoleText}>{output}</Text>
                           </ScrollView>
                         </View>

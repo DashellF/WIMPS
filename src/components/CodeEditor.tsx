@@ -6,20 +6,20 @@ const TAB = '    ';
 
 export function CodeEditor({ code, setCode, actions, theme }: any) {
   const [selection, setSelection] = useState({ start: 0, end: 0 });
-const [showActionMenu, setShowActionMenu] = useState(false);
-const menuAnim = useRef(new Animated.Value(0)).current;
-const styles = getThemeStyles(theme);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const menuAnim = useRef(new Animated.Value(0)).current;
+  const styles = getThemeStyles(theme);
 
   const lines = code.split('\n');
   const lineCount = lines.length;
 
-useEffect(() => {
-  Animated.timing(menuAnim, {
-    toValue: showActionMenu ? 1 : 0,
-    duration: 180,
-    useNativeDriver: true,
-  }).start();
-}, [showActionMenu]);
+  useEffect(() => {
+    Animated.timing(menuAnim, {
+      toValue: showActionMenu ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [showActionMenu]);
 
   const handleKeyPress = (e: any) => {
     const { start, end } = selection;
@@ -129,7 +129,7 @@ useEffect(() => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         bounces={false}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
       >
         <View style={styles.gutter}>
           {Array.from({ length: lineCount }).map((_, i) => (
@@ -159,6 +159,7 @@ useEffect(() => {
 }
 
 const getThemeStyles = (theme: Theme) => StyleSheet.create({
+  
   wrapper: { flex: 1, backgroundColor: theme.bg, padding: 14, borderWidth: 1, borderColor: theme.border },
 
   actionIcon: {
@@ -218,6 +219,8 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
   zIndex: 20,
   elevation: 10,
   alignItems: 'flex-end',
+  marginTop: 10,
+  marginRight: 10
 },
 
   floatingActionsRow: {
@@ -236,6 +239,7 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
+
 menuToggleButton: {
   backgroundColor: 'rgba(15, 23, 42, 0.82)',
   width: 44,
