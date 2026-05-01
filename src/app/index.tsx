@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Cookies from 'js-cookie'; //
 
 import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
@@ -107,9 +108,6 @@ export default function IdeScreen() {
   const [showHex, setShowHex] = useState(true);
 
   const [leftPanelPct, setLeftPanelPct] = useState(70);
-  const [editorHeightPct, setEditorHeightPct] = useState(70);
-  const [rightPanelHeightPct, setRightPanelHeightPct] = useState(55);
-
   const [minimized, setMinimized] = useState({
     editor: false,
     console: false,
@@ -137,7 +135,6 @@ export default function IdeScreen() {
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
-  // --- Logic for Deep Minimization ---
   const isLeftGroupMinimized = minimized.editor && minimized.console;
   const isRightGroupMinimized = minimized.registers && minimized.memory;
 
@@ -147,7 +144,7 @@ export default function IdeScreen() {
       onPress={onPress}
       style={[styles.tab, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}
     >
-    <Text style={[styles.tabText, { color: activeTheme.text }]}>{label}</Text>
+      <Text style={[styles.tabText, { color: activeTheme.text }]}>{label}</Text>
     </TouchableOpacity>
   );
 
@@ -212,29 +209,11 @@ export default function IdeScreen() {
     },
   }), [width]);
 
-  const panResponderVertical = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderMove: (_, gestureState) => {
-      const availableHeight = height - 132;
-      const newPct = ((gestureState.moveY - 100) / availableHeight) * 100;
-      if (newPct > 10 && newPct < 90) setEditorHeightPct(newPct);
-    },
-  }), [height]);
-
-  const panResponderRightVertical = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderMove: (_, gestureState) => {
-      const availableHeight = height - 132;
-      const newPct = ((gestureState.moveY - 100) / availableHeight) * 100;
-      if (newPct > 10 && newPct < 90) setRightPanelHeightPct(newPct);
-    },
-  }), [height]);
-
-  const toggleTheme = async () => {
+  const toggleTheme = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsDarkMode((prev) => {
       const nextMode = !prev;
-      AsyncStorage.setItem('@theme', nextMode ? 'dark' : 'light');
+      Cookies.set('theme', nextMode ? 'dark' : 'light', { expires: 365 }); //
       return nextMode;
     });
   };
@@ -243,8 +222,11 @@ export default function IdeScreen() {
     const loadSettings = async () => {
       const savedCode = await AsyncStorage.getItem(STORAGE_KEY);
       if (savedCode) setCode(savedCode);
-      const savedTheme = await AsyncStorage.getItem('@theme');
-      if (savedTheme) setIsDarkMode(savedTheme === 'dark');
+      
+      const savedTheme = Cookies.get('theme'); //
+      if (savedTheme) {
+        setIsDarkMode(savedTheme === 'dark');
+      }
     };
     loadSettings();
   }, []);
@@ -264,35 +246,32 @@ export default function IdeScreen() {
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>
           
-          {/* TOP BAR */}<View style={styles.topBar}>
-        <Image 
-          source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} 
-          style={styles.logo}  
-        />
-
-        {/* Minimized Tray with Combined Labels */}
-        <View style={styles.minimizedTray}>
-          {isLeftGroupMinimized && (
-            <TabItem 
-              label="Editor & Console" 
-              onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setMinimized(prev => ({ ...prev, editor: false, console: false }));
-              }} 
+          <View style={styles.topBar}>
+            <Image 
+              source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} 
+              style={styles.logo}  
             />
-          )}
-          {isRightGroupMinimized && (
-            <TabItem 
-              label="Registers & Memory" 
-              onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setMinimized(prev => ({ ...prev, registers: false, memory: false }));
-              }} 
-            />
-          )}
-        </View>
 
-
+            <View style={styles.minimizedTray}>
+              {isLeftGroupMinimized && (
+                <TabItem 
+                  label="Editor & Console" 
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setMinimized(prev => ({ ...prev, editor: false, console: false }));
+                  }} 
+                />
+              )}
+              {isRightGroupMinimized && (
+                <TabItem 
+                  label="Registers & Memory" 
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setMinimized(prev => ({ ...prev, registers: false, memory: false }));
+                  }} 
+                />
+              )}
+            </View>
 
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
@@ -307,7 +286,6 @@ export default function IdeScreen() {
 
           {isWide ? (
             <View style={styles.desktopContent}>
-              {/* LEFT COLUMN - Deep hide only if both are minimized */}
               {!isLeftGroupMinimized && (
                 <View style={[styles.editorColumn, { width: isRightGroupMinimized ? '100%' : `${leftPanelPct}%` }]}>
                   <WindowWrapper 
@@ -319,12 +297,6 @@ export default function IdeScreen() {
                   >
                     <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
-
-                  {!minimized.editor && !minimized.console && (
-                    <View {...panResponderVertical.panHandlers} style={styles.resizerHorizontal}>
-                      <View style={tStyles.resizerHorizontalLine} />
-                    </View>
-                  )}
 
                   <WindowWrapper 
                     title="Console Output" 
@@ -342,14 +314,12 @@ export default function IdeScreen() {
                 </View>
               )}
 
-              {/* VERTICAL RESIZER - Hide if either side is deep minimized */}
               {!isLeftGroupMinimized && !isRightGroupMinimized && (
                 <View {...panResponderHorizontal.panHandlers} style={styles.resizerVertical}>
                   <View style={tStyles.resizerVerticalLine} />
                 </View>
               )}
 
-              {/* RIGHT COLUMN - Deep hide only if both are minimized */}
               {!isRightGroupMinimized && (
                 <View style={[styles.sideColumn, { width: isLeftGroupMinimized ? '100%' : `${100 - leftPanelPct}%` }]}>
                   <WindowWrapper 
@@ -366,12 +336,6 @@ export default function IdeScreen() {
                       toggleFormat={() => setShowHex(prev => !prev)}
                     />
                   </WindowWrapper>
-
-                  {!minimized.registers && !minimized.memory && (
-                    <View {...panResponderRightVertical.panHandlers} style={styles.resizerHorizontal}>
-                      <View style={tStyles.resizerHorizontalLine} />
-                    </View>
-                  )}
 
                   <WindowWrapper 
                     title="Memory View" 
@@ -404,36 +368,14 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
   consoleCard: { flex: 1, backgroundColor: theme.card, padding: 14},
   consoleText: { color: theme.consoleText, fontFamily: 'monospace', lineHeight: 20 },
   resizerVerticalLine: { width: 4, height: 40, backgroundColor: theme.resizer, borderRadius: 2 },
-  resizerHorizontalLine: { height: 4, width: 40, backgroundColor: theme.resizer, borderRadius: 2 },
 });
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
   logo: { width: 200, height: 44, resizeMode: 'contain' },
-  minimizedTray: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 12,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  minimizedTray: { flex: 1, flexDirection: 'row', gap: 8, paddingHorizontal: 12 },
+  tab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, elevation: 2 },
+  tabText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
   topBarActions: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   primaryButton: { backgroundColor: '#2563eb', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   primaryButtonText: { color: '#ffffff', fontWeight: '600' },
@@ -441,7 +383,6 @@ const styles = StyleSheet.create({
   editorColumn: { height: '100%', paddingRight: 4 },
   sideColumn: { height: '100%', paddingLeft: 4 },
   resizerVertical: { width: 16, justifyContent: 'center', alignItems: 'center', cursor: 'col-resize' as any },
-  resizerHorizontal: { height: 16, justifyContent: 'center', alignItems: 'center', cursor: 'row-resize' as any },
   consoleOutput: { flex: 1 },
   mobileContent: { flex: 1 },
 });

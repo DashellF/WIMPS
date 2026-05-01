@@ -12,7 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { isThemeDark, setStoredTheme } from '../helpers/themeHelper';
+
+import Cookies from 'js-cookie';
 import { THEMES } from '../theme/themes';
 
 // --- Animated Switch Component ---
@@ -52,23 +53,40 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
 };
 
 export default function RegisterScreen() {
-  const [isDarkMode, setIsDarkMode] = useState(isThemeDark());
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // JS-Cookie Persistence Logic
   const toggleTheme = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    setStoredTheme(newMode);
+    Cookies.set('theme', newMode ? 'dark' : 'light', { expires: 365 });
   };
+
+  useEffect(() => {
+    const savedTheme = Cookies.get('theme');
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+    }
+  }, []);
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
   const handleRegister = async () => {
+    setError('');
+    setSuccess('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
     try {
       const res = await fetch('http://localhost:3001/auth/register', {
         method: 'POST',
@@ -76,13 +94,14 @@ export default function RegisterScreen() {
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Registration failed');
-      setSuccess('Account created! You can now log in.');
-      setError('');
-      setTimeout(() => window.open('/login', '_self'), 1500);
+      if (!res.ok) throw new Error(data.message || 'Registration failed');
+      
+      setSuccess('Account created successfully!');
+      setTimeout(() => {
+        window.open('/login', '_self');
+      }, 1500);
     } catch (err: any) {
       setError(err.message);
-      setSuccess('');
     }
   };
 
@@ -91,23 +110,62 @@ export default function RegisterScreen() {
       <SafeAreaView style={tStyles.safeArea}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>
+          {/* TOP BAR */}
           <View style={styles.topBar}>
-            <Image source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} style={styles.logo} />
+            <Image 
+              source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} 
+              style={styles.logo} 
+            />
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/login', '_self')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
+              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}>
+                <Text style={tStyles.secondaryButtonText}>IDE</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
+          {/* FORM */}
           <View style={styles.formWrapper}>
             <View style={tStyles.card}>
               <Text style={tStyles.title}>Create Account</Text>
+              
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
               {success ? <Text style={styles.successText}>{success}</Text> : null}
-              <TextInput style={tStyles.input} placeholder="Username" placeholderTextColor={activeTheme.subText} value={username} onChangeText={setUsername} autoCapitalize="none" />
-              <TextInput style={tStyles.input} placeholder="Password" placeholderTextColor={activeTheme.subText} value={password} onChangeText={setPassword} secureTextEntry />
-              <TouchableOpacity style={styles.primaryButton} onPress={handleRegister}><Text style={styles.primaryButtonText}>Sign Up</Text></TouchableOpacity>
+
+              <TextInput 
+                style={tStyles.input} 
+                placeholder="Username" 
+                placeholderTextColor={activeTheme.subText}
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+              />
+              <TextInput 
+                style={tStyles.input} 
+                placeholder="Password" 
+                placeholderTextColor={activeTheme.subText}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry 
+              />
+              <TextInput 
+                style={tStyles.input} 
+                placeholder="Confirm Password" 
+                placeholderTextColor={activeTheme.subText}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry 
+              />
+
+              <TouchableOpacity style={styles.primaryButton} onPress={handleRegister}>
+                <Text style={styles.primaryButtonText}>Register</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={{ marginTop: 16 }} onPress={() => window.open('/login', '_self')}>
+                <Text style={{ color: activeTheme.text, textAlign: 'center' }}>
+                  Already have an account? Login
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -118,7 +176,7 @@ export default function RegisterScreen() {
 
 const getThemeStyles = (theme: any) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.bg },
-  container: { flex: 1, backgroundColor: theme.bg, paddingHorizontal: 16, paddingTop: 12 },
+  container: { flex: 1, backgroundColor: theme.bg, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
   card: { backgroundColor: theme.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: theme.border, width: '100%', maxWidth: 400 },
   title: { color: theme.text, fontSize: 24, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
   input: { backgroundColor: theme.bg, color: theme.text, borderWidth: 1, borderColor: theme.border, borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 16 },

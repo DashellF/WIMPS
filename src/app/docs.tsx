@@ -11,12 +11,11 @@ import {
   View,
 } from 'react-native';
 
-import { isThemeDark, setStoredTheme } from '../helpers/themeHelper';
+import { PageWrapper } from '@/components/PageWrapper';
+import Cookies from 'js-cookie'; //
 import type { Theme } from '../theme/themes';
 import { THEMES } from '../theme/themes';
-import { PageWrapper } from '@/components/PageWrapper';
 
-// --- ThemeSwitch Component ---
 interface ThemeSwitchProps {
   isDark: boolean;
   toggle: () => void;
@@ -40,30 +39,35 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
   const iconColor = slideAnim.interpolate({ inputRange: [0, 1], outputRange: ['#ffffff', '#2563eb'] });
 
   return (
-    <PageWrapper>
-      <TouchableOpacity activeOpacity={0.8} onPress={toggle}>
-        <Animated.View style={[styles.switchTrack, { backgroundColor: trackBg, borderColor: trackBorder }]}>
-          <Animated.View style={[styles.switchThumb, { backgroundColor: thumbBg, transform: [{ translateX: thumbPosition }] }]}>
-            <Animated.Text style={[styles.switchIcon, { color: iconColor, paddingLeft: isDark ? 1 : 0 }]}>
-              {isDark ? '☾' : '☼'}
-            </Animated.Text>
-          </Animated.View>
+    <TouchableOpacity activeOpacity={0.8} onPress={toggle}>
+      <Animated.View style={[styles.switchTrack, { backgroundColor: trackBg, borderColor: trackBorder }]}>
+        <Animated.View style={[styles.switchThumb, { backgroundColor: thumbBg, transform: [{ translateX: thumbPosition }] }]}>
+          <Animated.Text style={[styles.switchIcon, { color: iconColor, paddingLeft: isDark ? 1 : 0 }]}>
+            {isDark ? '☾' : '☼'}
+          </Animated.Text>
         </Animated.View>
-      </TouchableOpacity>
-    </PageWrapper>
+      </Animated.View>
+    </TouchableOpacity>
   );
 };
 
 export default function DocsScreen() {
-  const [isDarkMode, setIsDarkMode] = useState(isThemeDark());
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
   const toggleTheme = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    setStoredTheme(newMode);
+    Cookies.set('theme', newMode ? 'dark' : 'light', { expires: 365 }); //
   };
+
+  useEffect(() => {
+    const savedTheme = Cookies.get('theme'); //
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+    }
+  }, []);
 
   const sections = [
     { title: 'Getting Started', content: 'Write MIPS assembly in the Editor tab. Use Assemble to compile, Run to execute, Step to walk through instructions one at a time, and Reset to start over.' },

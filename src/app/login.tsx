@@ -1,5 +1,6 @@
 import { PageWrapper } from '@/components/PageWrapper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Cookies from 'js-cookie'; //
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -13,10 +14,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { isThemeDark, setStoredTheme } from '../helpers/themeHelper';
 import { THEMES } from '../theme/themes';
 
-// --- Animated Switch Component ---
 interface ThemeSwitchProps {
   isDark: boolean;
   toggle: () => void;
@@ -53,7 +52,7 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
 };
 
 export default function LoginScreen() {
-  const [isDarkMode, setIsDarkMode] = useState(isThemeDark());
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -62,8 +61,15 @@ export default function LoginScreen() {
     LayoutAnimation.configureNext(LayoutAnimation.create(150, 'easeInEaseOut', 'opacity'));
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    setStoredTheme(newMode);
+    Cookies.set('theme', newMode ? 'dark' : 'light', { expires: 365 }); //
   };
+
+  useEffect(() => {
+    const savedTheme = Cookies.get('theme'); //
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+    }
+  }, []);
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
@@ -77,7 +83,7 @@ export default function LoginScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
-      await AsyncStorage.setItem('@user_token', data.token);
+      await AsyncStorage.setItem('@auth_token', data.token);
       window.open('/', '_self');
     } catch (err: any) {
       setError(err.message);
@@ -94,17 +100,17 @@ export default function LoginScreen() {
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
               <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/register', '_self')}><Text style={styles.primaryButtonText}>Register</Text></TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.formWrapper}>
             <View style={tStyles.card}>
-              <Text style={tStyles.title}>Welcome Back</Text>
+              <Text style={tStyles.title}>Login</Text>
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
               <TextInput style={tStyles.input} placeholder="Username" placeholderTextColor={activeTheme.subText} value={username} onChangeText={setUsername} autoCapitalize="none" />
               <TextInput style={tStyles.input} placeholder="Password" placeholderTextColor={activeTheme.subText} value={password} onChangeText={setPassword} secureTextEntry />
               <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}><Text style={styles.primaryButtonText}>Sign In</Text></TouchableOpacity>
+              <TouchableOpacity style={{ marginTop: 16 }} onPress={() => window.open('/register', '_self')}><Text style={{ color: activeTheme.text, textAlign: 'center' }}>Don't have an account? Register</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -115,7 +121,7 @@ export default function LoginScreen() {
 
 const getThemeStyles = (theme: any) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.bg },
-  container: { flex: 1, backgroundColor: theme.bg, paddingHorizontal: 16, paddingTop: 12 },
+  container: { flex: 1, backgroundColor: theme.bg, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
   card: { backgroundColor: theme.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: theme.border, width: '100%', maxWidth: 400 },
   title: { color: theme.text, fontSize: 24, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
   input: { backgroundColor: theme.bg, color: theme.text, borderWidth: 1, borderColor: theme.border, borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 16 },
