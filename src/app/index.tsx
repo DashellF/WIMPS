@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Cookies from 'js-cookie'; //
+import Cookies from 'js-cookie';
 
 import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
@@ -33,7 +33,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// --- Theme Switch Component ---
 interface ThemeSwitchProps {
   isDark: boolean;
   toggle: () => void;
@@ -41,45 +40,21 @@ interface ThemeSwitchProps {
 
 const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
   const slideAnim = useRef(new Animated.Value(isDark ? 1 : 0)).current;
-
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: isDark ? 1 : 0,
-      duration: 150, 
-      useNativeDriver: false, 
-    }).start();
+    Animated.timing(slideAnim, { toValue: isDark ? 1 : 0, duration: 150, useNativeDriver: false }).start();
   }, [isDark]);
 
-  const thumbPosition = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [4, 30], 
-  });
-
-  const trackBg = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#ffffff', '#2563eb'], 
-  });
-
-  const trackBorder = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#cbd5e1', '#2563eb'], 
-  });
-
-  const thumbBg = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#94a3b8', '#ffffff'], 
-  });
-
-  const iconColor = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#ffffff', '#2563eb'], 
-  });
+  const thumbPosition = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [4, 30] });
+  const trackBg = slideAnim.interpolate({ inputRange: [0, 1], outputRange: ['#ffffff', '#2563eb'] });
+  const trackBorder = slideAnim.interpolate({ inputRange: [0, 1], outputRange: ['#cbd5e1', '#2563eb'] });
+  const thumbBg = slideAnim.interpolate({ inputRange: [0, 1], outputRange: ['#94a3b8', '#ffffff'] });
+  const iconColor = slideAnim.interpolate({ inputRange: [0, 1], outputRange: ['#ffffff', '#2563eb'] });
 
   return (
     <TouchableOpacity activeOpacity={0.8} onPress={toggle}>
-      <Animated.View style={{ width: 58, height: 32, borderRadius: 16, backgroundColor: trackBg, borderColor: trackBorder, borderWidth: 2, justifyContent: 'center' }}>
-        <Animated.View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: thumbBg, transform: [{ translateX: thumbPosition }], justifyContent: 'center', alignItems: 'center' }}>
-          <Animated.Text style={{ color: iconColor, fontSize: 12, fontWeight: 'bold', lineHeight: 14 }}>{isDark ? '☾' : '☼'}</Animated.Text>
+      <Animated.View style={[styles.switchTrack, { backgroundColor: trackBg, borderColor: trackBorder }]}>
+        <Animated.View style={[styles.switchThumb, { backgroundColor: thumbBg, transform: [{ translateX: thumbPosition }] }]}>
+          <Animated.Text style={[styles.switchIcon, { color: iconColor }]}>{isDark ? '☾' : '☼'}</Animated.Text>
         </Animated.View>
       </Animated.View>
     </TouchableOpacity>
@@ -96,6 +71,12 @@ const buildInitialRegisters = (): RegisterValue[] => {
   return names.map((name, index) => ({ name, number: index, hexValue: '0x00000000' }));
 };
 
+const TabItem = ({ label, onPress }: { label: string; onPress: () => void }) => (
+  <TouchableOpacity style={styles.tab} onPress={onPress}>
+    <Text style={styles.tabText}>{label}</Text>
+  </TouchableOpacity>
+);
+
 export default function IdeScreen() {
   const { height, width } = useWindowDimensions();
   const isWide = width >= 1000;
@@ -107,13 +88,21 @@ export default function IdeScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showHex, setShowHex] = useState(true);
 
+  // Layout Percentages
   const [leftPanelPct, setLeftPanelPct] = useState(70);
+  const [editorHeightPct, setEditorHeightPct] = useState(65);
+  const [isResizing, setIsResizing] = useState(false);
+
   const [minimized, setMinimized] = useState({
     editor: false,
     console: false,
     registers: false,
     memory: false,
   });
+
+  // ✅ Ref to measure the editor column's actual on-screen position and height
+  const editorColumnRef = useRef<View>(null);
+  const editorColumnLayout = useRef({ y: 0, height: 0 });
 
   const STORAGE_KEY = '@mips_editor_code';
 
@@ -135,86 +124,83 @@ export default function IdeScreen() {
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
-  const isLeftGroupMinimized = minimized.editor && minimized.console;
-  const isRightGroupMinimized = minimized.registers && minimized.memory;
-
-  const TabItem = ({ label, onPress }: { label: string, onPress: () => void }) => (
-    <TouchableOpacity 
-      activeOpacity={0.7}
-      onPress={onPress}
-      style={[styles.tab, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}
-    >
-      <Text style={[styles.tabText, { color: activeTheme.text }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-
   const editorActions = useMemo(() => [
     {
-      label: 'Assemble',
-      icon: require('../../assets/images/assemble_icon.png'),
-      onPress: () => {
+      label: 'Assemble', icon: require('../../assets/images/assemble_icon.png'), onPress: () => {
         const result = assemble(code);
         if (!result.ok) setOutput(`Assembly error:\n${result.error}`);
-        else {
-          const state = getState();
-          if (state) setRegisters(state.registers);
-          updateMemory();
-          setOutput('Assembled successfully.');
-        }
-      },
+        else { setRegisters(getState()?.registers || []); updateMemory(); setOutput('Assembled successfully.'); }
+      }
     },
     {
-      label: 'Run',
-      icon: require('../../assets/images/run_icon.png'),
-      onPress: () => {
+      label: 'Run', icon: require('../../assets/images/run_icon.png'), onPress: () => {
         const result = runSim();
         if ('error' in result) setOutput(`Runtime error:\n${result.error}`);
-        else {
-          setRegisters(result.registers);
-          updateMemory();
-          setOutput(result.output || 'Program finished.');
-        }
-      },
+        else { setRegisters(result.registers); updateMemory(); setOutput(result.output || 'Program finished.'); }
+      }
     },
     {
-      label: 'Step',
-      icon: require('../../assets/images/step_icon.png'),
-      onPress: () => {
+      label: 'Step', icon: require('../../assets/images/step_icon.png'), onPress: () => {
         const result = stepSim();
-        if ('error' in result) {
-          setOutput(`Step error:\n${result.error}`);
-        } else {
-          setRegisters(result.registers);
-          updateMemory();
-          setOutput(`PC: 0x${result.pc.toString(16).padStart(8, '0')}\n` + result.output);
-        }
-      },
+        if ('error' in result) setOutput(`Step error:\n${result.error}`);
+        else { setRegisters(result.registers); updateMemory(); setOutput(`PC: 0x${result.pc.toString(16).padStart(8, '0')}\n` + result.output); }
+      }
     },
     {
-        label: 'Reset',
-        icon: require('../../assets/images/reset_icon.png'),
-        onPress: () => {
-          resetSim();
-          setRegisters(buildInitialRegisters());
-          setOutput('Reset.');
-        },
+      label: 'Reset', icon: require('../../assets/images/reset_icon.png'), onPress: () => {
+        resetSim(); setRegisters(buildInitialRegisters()); setOutput('Reset.');
+      }
     },
   ], [code]);
 
   const panResponderHorizontal = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => setIsResizing(true),
     onPanResponderMove: (_, gestureState) => {
       const newPct = ((gestureState.moveX - 16) / (width - 32)) * 100;
       if (newPct > 10 && newPct < 90) setLeftPanelPct(newPct);
     },
+    onPanResponderRelease: () => setIsResizing(false),
   }), [width]);
+
+  // ✅ Fixed vertical pan responder: measure the column's real Y offset on grant,
+  //    then compute percentage relative to the column height — not the full screen.
+  const panResponderVertical = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+
+    onPanResponderGrant: () => {
+      setIsResizing(true);
+      // Capture the column's current position in window coordinates
+      editorColumnRef.current?.measureInWindow((x, y, w, h) => {
+        editorColumnLayout.current = { y, height: h };
+      });
+    },
+
+    onPanResponderMove: (_, gestureState) => {
+      const { y: colY, height: colH } = editorColumnLayout.current;
+      if (colH === 0) return; // Layout not measured yet — skip
+
+      // gestureState.moveY is absolute; subtract column's top to get relative position
+      const relativeY = gestureState.moveY - colY;
+      const newPct = (relativeY / colH) * 100;
+
+      // Clamp: editor must be at least 15% and at most 85% of the column
+      if (newPct > 15 && newPct < 85) {
+        setEditorHeightPct(newPct);
+      }
+    },
+
+    onPanResponderRelease: () => setIsResizing(false),
+    onPanResponderTerminate: () => setIsResizing(false),
+  }), []); // ✅ No dependencies needed — we read live values via ref
 
   const toggleTheme = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsDarkMode((prev) => {
-      const nextMode = !prev;
-      Cookies.set('theme', nextMode ? 'dark' : 'light', { expires: 365 }); //
-      return nextMode;
+    setIsDarkMode(prev => {
+      const next = !prev;
+      Cookies.set('theme', next ? 'dark' : 'light', { expires: 365 });
+      return next;
     });
   };
 
@@ -222,57 +208,36 @@ export default function IdeScreen() {
     const loadSettings = async () => {
       const savedCode = await AsyncStorage.getItem(STORAGE_KEY);
       if (savedCode) setCode(savedCode);
-      
-      const savedTheme = Cookies.get('theme'); //
-      if (savedTheme) {
-        setIsDarkMode(savedTheme === 'dark');
-      }
+      const savedTheme = Cookies.get('theme');
+      if (savedTheme) setIsDarkMode(savedTheme === 'dark');
     };
     loadSettings();
   }, []);
 
-  useEffect(() => {
-    if (code) AsyncStorage.setItem(STORAGE_KEY, code);
-  }, [code]);
+  useEffect(() => { if (code) AsyncStorage.setItem(STORAGE_KEY, code); }, [code]);
 
-  const updateMemory = () => {
-    const data = getMemoryRange(0x10010000, 20);
-    setMemoryData(data);
-  };
-
+  const updateMemory = () => setMemoryData(getMemoryRange(0x10010000, 20));
+  console.log({ PageWrapper, SafeAreaView, WindowWrapper, CodeEditor, MemoryView, RegisterPanel, TabItem });
   return (
+    
     <PageWrapper>
-      <SafeAreaView style={tStyles.safeArea}>
+      <SafeAreaView style={[tStyles.safeArea, isResizing && styles.noSelect]}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>
-          
-          <View style={styles.topBar}>
-            <Image 
-              source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} 
-              style={styles.logo}  
-            />
 
+          <View style={styles.topBar}>
+            <Image
+              source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')}
+              style={styles.logo}
+            />
             <View style={styles.minimizedTray}>
-              {isLeftGroupMinimized && (
-                <TabItem 
-                  label="Editor & Console" 
-                  onPress={() => {
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setMinimized(prev => ({ ...prev, editor: false, console: false }));
-                  }} 
-                />
+              {minimized.editor && minimized.console && (
+                <TabItem label="Editor & Console" onPress={() => setMinimized(p => ({ ...p, editor: false, console: false }))} />
               )}
-              {isRightGroupMinimized && (
-                <TabItem 
-                  label="Registers & Memory" 
-                  onPress={() => {
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setMinimized(prev => ({ ...prev, registers: false, memory: false }));
-                  }} 
-                />
+              {minimized.registers && minimized.memory && (
+                <TabItem label="Registers & Memory" onPress={() => setMinimized(p => ({ ...p, registers: false, memory: false }))} />
               )}
             </View>
-
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
               <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/docs', '_self')}>
@@ -286,27 +251,52 @@ export default function IdeScreen() {
 
           {isWide ? (
             <View style={styles.desktopContent}>
-              {!isLeftGroupMinimized && (
-                <View style={[styles.editorColumn, { width: isRightGroupMinimized ? '100%' : `${leftPanelPct}%` }]}>
-                  <WindowWrapper 
-                    title="MIPS Editor" 
-                    theme={activeTheme} 
+              {(!minimized.editor || !minimized.console) && (
+                // ✅ Attach ref here so we can measure this column's real position
+                <View
+                  ref={editorColumnRef}
+                  style={[
+                    styles.editorColumn,
+                    { width: (minimized.registers && minimized.memory) ? '100%' : `${leftPanelPct}%` },
+                  ]}
+                >
+                  <WindowWrapper
+                    title="MIPS Editor"
+                    theme={activeTheme}
                     isMinimized={minimized.editor}
                     onToggleMinimize={() => toggleWindow('editor')}
                     onMaximize={() => maximizeWindow('editor')}
+                    style={!minimized.editor
+                      ? { height: minimized.console ? '100%' : `${editorHeightPct}%` }
+                      : { height: 40 }
+                    }
                   >
                     <CodeEditor code={code} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
 
-                  <WindowWrapper 
-                    title="Console Output" 
-                    theme={activeTheme} 
+                  {/* ✅ Only show resizer when both panels are visible */}
+                  {!minimized.editor && !minimized.console && (
+                    <View
+                      {...panResponderVertical.panHandlers}
+                      style={styles.resizerHorizontal}
+                    >
+                      <View style={tStyles.resizerHorizontalLine} />
+                    </View>
+                  )}
+
+                  <WindowWrapper
+                    title="Console Output"
+                    theme={activeTheme}
                     isMinimized={minimized.console}
                     onToggleMinimize={() => toggleWindow('console')}
                     onMaximize={() => maximizeWindow('console')}
+                    style={!minimized.console
+                      ? { height: minimized.editor ? '100%' : `${100 - editorHeightPct}%` }
+                      : { height: 40 }
+                    }
                   >
                     <View style={[tStyles.consoleCard, { flex: 1 }]}>
-                      <ScrollView style={styles.consoleOutput} showsVerticalScrollIndicator={true}>
+                      <ScrollView>
                         <Text style={tStyles.consoleText}>{output}</Text>
                       </ScrollView>
                     </View>
@@ -314,32 +304,26 @@ export default function IdeScreen() {
                 </View>
               )}
 
-              {!isLeftGroupMinimized && !isRightGroupMinimized && (
+              {(!minimized.editor || !minimized.console) && (!minimized.registers || !minimized.memory) && (
                 <View {...panResponderHorizontal.panHandlers} style={styles.resizerVertical}>
                   <View style={tStyles.resizerVerticalLine} />
                 </View>
               )}
 
-              {!isRightGroupMinimized && (
-                <View style={[styles.sideColumn, { width: isLeftGroupMinimized ? '100%' : `${100 - leftPanelPct}%` }]}>
-                  <WindowWrapper 
-                    title="Registers" 
-                    theme={activeTheme} 
+              {(!minimized.registers || !minimized.memory) && (
+                <View style={[styles.sideColumn, { width: (minimized.editor && minimized.console) ? '100%' : `${100 - leftPanelPct}%` }]}>
+                  <WindowWrapper
+                    title="Registers"
+                    theme={activeTheme}
                     isMinimized={minimized.registers}
                     onToggleMinimize={() => toggleWindow('registers')}
                     onMaximize={() => maximizeWindow('registers')}
                   >
-                    <RegisterPanel
-                      registers={registers}
-                      theme={activeTheme}
-                      showHex={showHex}
-                      toggleFormat={() => setShowHex(prev => !prev)}
-                    />
+                    <RegisterPanel registers={registers} theme={activeTheme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />
                   </WindowWrapper>
-
-                  <WindowWrapper 
-                    title="Memory View" 
-                    theme={activeTheme} 
+                  <WindowWrapper
+                    title="Memory View"
+                    theme={activeTheme}
                     isMinimized={minimized.memory}
                     onToggleMinimize={() => toggleWindow('memory')}
                     onMaximize={() => maximizeWindow('memory')}
@@ -365,9 +349,10 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.bg, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
   secondaryButton: { borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: theme.btnBg },
   secondaryButtonText: { color: theme.text, fontWeight: '600' },
-  consoleCard: { flex: 1, backgroundColor: theme.card, padding: 14},
+  consoleCard: { flex: 1, backgroundColor: theme.card, padding: 14 },
   consoleText: { color: theme.consoleText, fontFamily: 'monospace', lineHeight: 20 },
   resizerVerticalLine: { width: 4, height: 40, backgroundColor: theme.resizer, borderRadius: 2 },
+  resizerHorizontalLine: { height: 4, width: 40, backgroundColor: theme.resizer, borderRadius: 2 },
 });
 
 const styles = StyleSheet.create({
@@ -383,6 +368,10 @@ const styles = StyleSheet.create({
   editorColumn: { height: '100%', paddingRight: 4 },
   sideColumn: { height: '100%', paddingLeft: 4 },
   resizerVertical: { width: 16, justifyContent: 'center', alignItems: 'center', cursor: 'col-resize' as any },
-  consoleOutput: { flex: 1 },
+  resizerHorizontal: { height: 16, justifyContent: 'center', alignItems: 'center', cursor: 'row-resize' as any, zIndex: 10 },
   mobileContent: { flex: 1 },
+  noSelect: { userSelect: 'none' } as any,
+  switchTrack: { width: 58, height: 32, borderRadius: 16, borderWidth: 2, justifyContent: 'center' },
+  switchThumb: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  switchIcon: { fontSize: 12, fontWeight: 'bold' },
 });
