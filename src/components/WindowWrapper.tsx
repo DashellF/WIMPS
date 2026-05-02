@@ -1,8 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Theme } from '../theme/themes';
-export function WindowWrapper({ title, children, theme, isMinimized, onToggleMinimize, onMaximize, style }: any) {
+
+
+export function WindowWrapper({ title, children, theme, isMinimized, onToggleMinimize, style }: any) {
   const styles = getThemeStyles(theme);
+  
   return (
     <View style={[
       styles.windowContainer,
@@ -25,10 +28,11 @@ export function WindowWrapper({ title, children, theme, isMinimized, onToggleMin
           },
         ]}
       >
-          <Text
-            style={[styles.controlButton]}
-            onPress={onToggleMinimize}
-          >⌄</Text>
+        {/* Toggle Icon Logic */}
+        <Text style={styles.controlButton}>
+          {isMinimized ? '▲' : '▼'}
+        </Text>
+
         <Text style={[styles.titleText, { color: theme.text }]}>
           {title} {isMinimized && ' (Minimized)'}
         </Text>
@@ -62,19 +66,16 @@ const getThemeStyles = (theme: Theme) =>
   contentArea: {
     flex: 1,
   },
-  controls: {
-    flexDirection: 'row',
-    gap: 8,
-    width: 60,
-  },
   controlButton: {
-    marginBottom: 10,
     color: theme.text,
-    fontSize: 20
+    fontSize: 14,
+    width: 20,
   },
   titleText: {
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.3,
+    textAlign: 'center',
+    flex: 1, // Ensures title stays centered between the icon and the spacer
   },
 });

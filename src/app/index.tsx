@@ -216,7 +216,10 @@ export default function IdeScreen() {
 
   const toggleWindow = (key: keyof typeof minimized) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setMinimized(prev => ({ ...prev, [key]: !prev[key] }));
+    setMinimized(prev => ({
+       ...prev, [key]: !prev[key]
+      
+    }));
   };
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
@@ -470,7 +473,7 @@ export default function IdeScreen() {
                                 borderLeftWidth: 1.5, 
                                 borderRightWidth: 1.5, 
                                 borderColor: activeTheme.text, 
-                                marginTop: 2 
+                                marginTop: 2,
                               }} />
                             </View>
                           </TouchableOpacity>
