@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -14,7 +15,7 @@ import {
   TouchableOpacity,
   UIManager,
   View,
-  useWindowDimensions,
+  useWindowDimensions
 } from 'react-native';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -432,8 +433,8 @@ export default function IdeScreen() {
               </View>
               {isWide ? (
                 <>
-                  <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/docs', '_self')}><Text style={tStyles.secondaryButtonText}>Docs</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/login', '_self')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
+                  <TouchableOpacity style={tStyles.secondaryButton} onPress={() => router.push('/docs')}><Text style={tStyles.secondaryButtonText}>Docs</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/login')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
                 </>
               ) : (
                 <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.menuIcon}>
@@ -446,8 +447,8 @@ export default function IdeScreen() {
           {/* MOBILE MENU */}
           {menuOpen && !isWide && (
             <View style={[styles.mobileMenu, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
-              <TouchableOpacity style={styles.menuItem} onPress={() => window.open('/docs', '_self')}><Text style={{ color: activeTheme.text }}>Docs</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => window.open('/login', '_self')}><Text style={{ color: activeTheme.text }}>Login</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/docs')}><Text style={{ color: activeTheme.text }}>Docs</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/login')}><Text style={{ color: activeTheme.text }}>Login</Text></TouchableOpacity>
             </View>
           )}
 

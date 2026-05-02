@@ -1,5 +1,6 @@
 import { PageWrapper } from '@/components/PageWrapper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import Cookies from 'js-cookie'; //
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -84,7 +85,7 @@ export default function LoginScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
       await AsyncStorage.setItem('@auth_token', data.token);
-      window.open('/', '_self');
+      router.push('/');
     } catch (err: any) {
       setError(err.message);
     }
@@ -99,7 +100,7 @@ export default function LoginScreen() {
             <Image source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} style={styles.logo} />
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
+              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => router.push('/')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
             </View>
           </View>
 
@@ -110,7 +111,7 @@ export default function LoginScreen() {
               <TextInput style={tStyles.input} placeholder="Username" placeholderTextColor={activeTheme.subText} value={username} onChangeText={setUsername} autoCapitalize="none" />
               <TextInput style={tStyles.input} placeholder="Password" placeholderTextColor={activeTheme.subText} value={password} onChangeText={setPassword} secureTextEntry />
               <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}><Text style={styles.primaryButtonText}>Sign In</Text></TouchableOpacity>
-              <TouchableOpacity style={{ marginTop: 16 }} onPress={() => window.open('/register', '_self')}><Text style={{ color: activeTheme.text, textAlign: 'center' }}>Don't have an account? Register</Text></TouchableOpacity>
+              <TouchableOpacity style={{ marginTop: 16 }} onPress={() => router.push('/register')}><Text style={{ color: activeTheme.text, textAlign: 'center' }}>Don't have an account? Register</Text></TouchableOpacity>
             </View>
           </View>
         </View>

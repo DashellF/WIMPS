@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -8,7 +9,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 import { PageWrapper } from '@/components/PageWrapper';
@@ -86,8 +87,8 @@ export default function DocsScreen() {
             <Image source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} style={styles.logo} />
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => window.open('/login', '_self')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
+              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => router.push('/')}><Text style={tStyles.secondaryButtonText}>IDE</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/login')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
             </View>
           </View>
 

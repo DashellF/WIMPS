@@ -1,4 +1,5 @@
 import { PageWrapper } from '@/components/PageWrapper';
+import { router } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -10,7 +11,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 import Cookies from 'js-cookie';
@@ -98,7 +99,7 @@ export default function RegisterScreen() {
       
       setSuccess('Account created successfully!');
       setTimeout(() => {
-        window.open('/login', '_self');
+        router.push('/login');
       }, 1500);
     } catch (err: any) {
       setError(err.message);
@@ -118,7 +119,7 @@ export default function RegisterScreen() {
             />
             <View style={styles.topBarActions}>
               <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
-              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => window.open('/', '_self')}>
+              <TouchableOpacity style={tStyles.secondaryButton} onPress={() => router.push('/')}>
                 <Text style={tStyles.secondaryButtonText}>IDE</Text>
               </TouchableOpacity>
             </View>
@@ -161,7 +162,7 @@ export default function RegisterScreen() {
                 <Text style={styles.primaryButtonText}>Register</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={{ marginTop: 16 }} onPress={() => window.open('/login', '_self')}>
+              <TouchableOpacity style={{ marginTop: 16 }} onPress={() => router.push('/login')}>
                 <Text style={{ color: activeTheme.text, textAlign: 'center' }}>
                   Already have an account? Login
                 </Text>
