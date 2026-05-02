@@ -403,10 +403,6 @@ export default function IdeScreen() {
         </View>
         <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Download</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={handleAddTab} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
-        <Text style={[styles.mobileFileActionIcon, { color: activeTheme.text }]}>+</Text>
-        <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>New File</Text>
-      </TouchableOpacity>
     </View>
   );
 
