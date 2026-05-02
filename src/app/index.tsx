@@ -17,6 +17,9 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import Cookies from 'js-cookie';
 
 import { CodeEditor } from '../components/CodeEditor';
@@ -123,6 +126,7 @@ export default function IdeScreen() {
   const editorColumnLayout = useRef({ y: 0, height: 0 });
   const sideColumnRef = useRef<View>(null);
   const sideColumnLayout = useRef({ y: 0, height: 0 });
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code || '', [tabs, activeTabId]);
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
@@ -152,6 +156,104 @@ export default function IdeScreen() {
       setActiveTabId(tabId);
       lastTapRef.current = { id: tabId, time: now };
     }
+  };
+
+  // --- File Tab Actions ---
+  const handleAddTab = () => {
+    const newId = String(Date.now());
+    const newName = `file${tabs.length + 1}.asm`;
+    setTabs(prev => [...prev, { id: newId, name: newName, code: '' }]);
+    setActiveTabId(newId);
+  };
+
+  const handleCloseTab = (tabId: string) => {
+    if (tabs.length === 1) return; // Don't close the last tab
+    const idx = tabs.findIndex(t => t.id === tabId);
+    const newTabs = tabs.filter(t => t.id !== tabId);
+    setTabs(newTabs);
+    if (activeTabId === tabId) {
+      // Switch to adjacent tab
+      const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
+      setActiveTabId(nextTab.id);
+    }
+  };
+
+  const handleDownload = async () => {
+    const activeTab = tabs.find(t => t.id === activeTabId);
+    if (!activeTab) return;
+
+    if (Platform.OS === 'web') {
+      // Web: trigger browser download
+      const blob = new Blob([activeTab.code], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = activeTab.name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // iOS / Android: write to cache then open native share sheet
+      try {
+        const fileUri = FileSystem.cacheDirectory + activeTab.name;
+        await FileSystem.writeAsStringAsync(fileUri, activeTab.code, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/plain',
+            dialogTitle: `Save ${activeTab.name}`,
+          });
+        }
+      } catch (err) {
+        console.error('Download failed:', err);
+      }
+    }
+  };
+
+  const handleUpload = async () => {
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.asm,.s,.txt';
+      input.onchange = (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const text = ev.target?.result as string;
+          const newId = String(Date.now());
+          setTabs(prev => [...prev, { id: newId, name: file.name, code: text }]);
+          setActiveTabId(newId);
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    } else {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          copyToCacheDirectory: true,
+        });
+        if (result.canceled || !result.assets?.length) return;
+        const asset = result.assets[0];
+        const text = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const newId = String(Date.now());
+        setTabs(prev => [...prev, { id: newId, name: asset.name ?? 'uploaded.asm', code: text }]);
+        setActiveTabId(newId);
+      } catch (err) {
+        console.error('Upload failed:', err);
+      }
+    }
+  };
+
+  const handleCommitTabName = () => {
+    if (editingTabId && editTabName.trim()) {
+      setTabs(prev => prev.map(t => t.id === editingTabId ? { ...t, name: editTabName.trim() } : t));
+    }
+    setEditingTabId(null);
   };
 
   const editorActions = useMemo(() => [
@@ -214,6 +316,99 @@ export default function IdeScreen() {
     onPanResponderRelease: () => setIsResizing(false),
   }), []);
 
+  // --- Shared Tab ScrollView (tabs only, no action buttons) ---
+  const renderTabScrollView = () => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+      {tabs.map((tab) => (
+        <View key={tab.id} style={[styles.editorTab, { borderColor: activeTabId === tab.id ? '#3b82f6' : 'transparent' }]}>
+          <TouchableOpacity onPress={() => handleTabPress(tab.id)}>
+            {editingTabId === tab.id ? (
+              <TextInput
+                autoFocus
+                value={editTabName}
+                onChangeText={setEditTabName}
+                onBlur={handleCommitTabName}
+                onSubmitEditing={handleCommitTabName}
+                style={{ color: activeTheme.text, minWidth: 60 }}
+              />
+            ) : (
+              <Text style={{
+                color: activeTabId === tab.id ? activeTheme.text : activeTheme.subText,
+                fontWeight: activeTabId === tab.id ? '600' : '400',
+                marginRight: tabs.length > 1 ? 4 : 8,
+              }}>
+                {tab.name}
+              </Text>
+            )}
+          </TouchableOpacity>
+          {tabs.length > 1 && (
+            <TouchableOpacity onPress={() => handleCloseTab(tab.id)} style={styles.tabCloseBtn}>
+              <Text style={{ color: activeTheme.subText, fontSize: 12, lineHeight: 14 }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
+    </ScrollView>
+  );
+
+  // --- Desktop Tab Bar (tabs left, actions right-aligned) ---
+  const renderDesktopTabBar = () => (
+    <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+      {renderTabScrollView()}
+      {/* Right-aligned actions: Upload, Download, New File */}
+      <View style={styles.desktopTabActions}>
+        <TouchableOpacity onPress={handleUpload} style={[styles.desktopFileBtn, { borderColor: activeTheme.border }]}>
+          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↑</Text>
+            <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleDownload} style={[styles.desktopFileBtn, { borderColor: activeTheme.border }]}>
+          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↓</Text>
+            <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleAddTab} style={[styles.desktopFileBtn, styles.desktopFileBtnLast, { borderColor: activeTheme.border }]}>
+          <Text style={{ color: activeTheme.text, fontSize: 18, fontWeight: '300', lineHeight: 22 }}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // --- Mobile Tab Bar (tabs + + button) ---
+  const renderTabBar = () => (
+    <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+      {renderTabScrollView()}
+      <TouchableOpacity onPress={handleAddTab} style={[styles.tabActionBtn, { borderColor: activeTheme.border }]}>
+        <Text style={{ color: activeTheme.subText, fontSize: 16, fontWeight: '300' }}>+</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderMobileFileActions = () => (
+    <View style={[styles.mobileFileActionsBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+      <TouchableOpacity onPress={handleUpload} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
+        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↑</Text>
+          <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
+        </View>
+        <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Upload</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={handleDownload} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
+        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↓</Text>
+          <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
+        </View>
+        <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Download</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={handleAddTab} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
+        <Text style={[styles.mobileFileActionIcon, { color: activeTheme.text }]}>+</Text>
+        <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>New File</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <PageWrapper>
       <SafeAreaView style={[tStyles.safeArea, isResizing && styles.noSelect]}>
@@ -268,23 +463,7 @@ export default function IdeScreen() {
                     onToggleMinimize={() => toggleWindow('editor')} 
                     style={!minimized.editor ? { height: minimized.console ? 'calc(100% - 24px)' : `${editorHeightPct}%` } : { height: 40 }}
                   >
-                    {!minimized.editor && (
-                      <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ flex: 1 }}>
-                          {tabs.map((tab) => (
-                            <View key={tab.id} style={[styles.editorTab, { borderColor: activeTabId === tab.id ? '#3b82f6' : 'transparent' }]}>
-                              <TouchableOpacity onPress={() => handleTabPress(tab.id)}>
-                                {editingTabId === tab.id ? (
-                                  <TextInput autoFocus value={editTabName} onChangeText={setEditTabName} onBlur={() => setEditingTabId(null)} style={{ color: activeTheme.text, minWidth: 60 }} />
-                                ) : (
-                                  <Text style={{ color: activeTabId === tab.id ? activeTheme.text : activeTheme.subText, fontWeight: activeTabId === tab.id ? '600' : '400', marginRight: 8 }}>{tab.name}</Text>
-                                )}
-                              </TouchableOpacity>
-                            </View>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
+                    {!minimized.editor && renderDesktopTabBar()}
                     <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
 
@@ -328,6 +507,10 @@ export default function IdeScreen() {
               <View style={styles.mobileMainArea}>
                 {mobileView === 'editor' && (
                   <WindowWrapper title="Editor" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%' }}>
+                    {/* Mobile File Actions Bar */}
+                    {renderMobileFileActions()}
+                    {/* Mobile Tab Bar */}
+                    {renderTabBar()}
                     <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
                 )}
@@ -348,12 +531,18 @@ export default function IdeScreen() {
                 )}
               </View>
               <View style={[styles.mobileTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
-                {(['editor', 'console', 'registers', 'memory'] as const).map((view) => (
-                  <TouchableOpacity key={view} onPress={() => setMobileView(view)} style={[styles.mobileTabButton, mobileView === view && { borderTopWidth: 3, borderTopColor: '#2563eb' }]}>
-                    <Text style={{ color: mobileView === view ? '#2563eb' : activeTheme.subText, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>{view}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                  {(['editor', 'console', 'registers', 'memory'] as const).map((view) => (
+                    <TouchableOpacity 
+                      key={view} 
+                      onPress={() => setMobileView(view)} 
+                      style={[styles.mobileTabButton, mobileView === view && { borderTopWidth: 3, borderTopColor: '#2563eb' }]}
+                    >
+                      <Text style={{ color: mobileView === view ? '#2563eb' : activeTheme.subText, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>
+                        {view}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
             </View>
           )}
         </View>
@@ -395,9 +584,54 @@ const styles = StyleSheet.create({
   mobileMenu: { position: 'absolute', top: 60, right: 16, width: 140, borderRadius: 10, borderWidth: 1, zIndex: 100, padding: 8 },
   menuItem: { padding: 12 },
   editorTabBar: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'center' },
-  editorTab: { paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2 },
+  editorTab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2 },
+  tabCloseBtn: { paddingHorizontal: 4, paddingVertical: 2, marginLeft: 2 },
+  tabActionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderLeftWidth: 1, justifyContent: 'center', alignItems: 'center' },
   noSelect: { userSelect: 'none' } as any,
   switchTrack: { width: 58, height: 32, borderRadius: 16, borderWidth: 2, justifyContent: 'center' },
   switchThumb: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   switchIcon: { fontSize: 12, fontWeight: 'bold' },
+  // Desktop tab row action group (right-aligned)
+  desktopTabActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginLeft: 'auto' as any,
+  },
+  desktopFileBtn: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 4,
+    borderLeftWidth: 1,
+    gap: 0,
+  },
+  desktopFileBtnLast: {
+    paddingHorizontal: 13,
+  },
+  // Mobile file actions bar
+  mobileFileActionsBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  mobileFileActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  mobileFileActionIcon: {
+    fontSize: 13,
+  },
+  mobileFileActionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });
