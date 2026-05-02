@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
+import { Theme } from '../theme/themes';
 export function WindowWrapper({ title, children, theme, isMinimized, onToggleMinimize, onMaximize, style }: any) {
+  const styles = getThemeStyles(theme);
   return (
     <View style={[
       styles.windowContainer,
@@ -10,9 +11,7 @@ export function WindowWrapper({ title, children, theme, isMinimized, onToggleMin
         borderColor: theme.border,
         marginBottom: isMinimized ? 8 : 0,
       },
-      // ✅ Merge the parent-supplied style LAST so height/flex values win
       style,
-      // ✅ But always enforce minimized overrides on top
       isMinimized && { flex: 0, height: 34, minHeight: 34 },
     ]}>
       <TouchableOpacity
@@ -26,20 +25,10 @@ export function WindowWrapper({ title, children, theme, isMinimized, onToggleMin
           },
         ]}
       >
-        <View style={styles.controls}>
-          <TouchableOpacity
-            style={[styles.controlButton, { backgroundColor: '#ff605c' }]}
+          <Text
+            style={[styles.controlButton]}
             onPress={onToggleMinimize}
-          />
-          <TouchableOpacity
-            style={[styles.controlButton, { backgroundColor: '#ffbd2e' }]}
-            onPress={onToggleMinimize}
-          />
-          <TouchableOpacity
-            style={[styles.controlButton, { backgroundColor: '#27c93f' }]}
-            onPress={onMaximize}
-          />
-        </View>
+          >⌄</Text>
         <Text style={[styles.titleText, { color: theme.text }]}>
           {title} {isMinimized && ' (Minimized)'}
         </Text>
@@ -55,7 +44,8 @@ export function WindowWrapper({ title, children, theme, isMinimized, onToggleMin
   );
 }
 
-const styles = StyleSheet.create({
+const getThemeStyles = (theme: Theme) =>
+  StyleSheet.create({
   windowContainer: {
     borderRadius: 10,
     borderWidth: 1,
@@ -78,9 +68,9 @@ const styles = StyleSheet.create({
     width: 60,
   },
   controlButton: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    marginBottom: 10,
+    color: theme.text,
+    fontSize: 20
   },
   titleText: {
     fontSize: 11,

@@ -219,16 +219,6 @@ export default function IdeScreen() {
     setMinimized(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const maximizeWindow = (targetKey: keyof typeof minimized) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setMinimized({
-      editor: targetKey !== 'editor',
-      console: targetKey !== 'console',
-      registers: targetKey !== 'registers',
-      memory: targetKey !== 'memory',
-    });
-  };
-
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
@@ -393,7 +383,6 @@ export default function IdeScreen() {
                     theme={activeTheme}
                     isMinimized={minimized.editor}
                     onToggleMinimize={() => toggleWindow('editor')}
-                    onMaximize={() => maximizeWindow('editor')}
                     style={!minimized.editor
                       ? { height: minimized.console ? 'calc(100% - 24px)' : `${editorHeightPct}%` }
                       : { height: 40 }
@@ -406,7 +395,7 @@ export default function IdeScreen() {
                         {/* Wheel Event Catcher for Web Horizontal Scrolling */}
                         <ScrollView 
                           horizontal 
-                          showsHorizontalScrollIndicator={false} 
+                          showsHorizontalScrollIndicator={true} 
                           style={{ flex: 1 }}
                           ref={(ref) => {
                             // Grab the DOM node and apply mouse wheel to scrollLeft
@@ -529,7 +518,6 @@ export default function IdeScreen() {
                     theme={activeTheme}
                     isMinimized={minimized.console}
                     onToggleMinimize={() => toggleWindow('console')}
-                    onMaximize={() => maximizeWindow('console')}
                     style={!minimized.console
                       ? { height: minimized.editor ? '100%' : `${100 - editorHeightPct}%`}
                       : { height: 40}
@@ -560,7 +548,6 @@ export default function IdeScreen() {
                     theme={activeTheme}
                     isMinimized={minimized.registers}
                     onToggleMinimize={() => toggleWindow('registers')}
-                    onMaximize={() => maximizeWindow('registers')}
                     style={!minimized.registers
                       ? { height: minimized.memory ? 'calc(100% - 24px)' : `${sideHeightPct}%` }
                       : { height: 40 }
@@ -580,7 +567,6 @@ export default function IdeScreen() {
                     theme={activeTheme}
                     isMinimized={minimized.memory}
                     onToggleMinimize={() => toggleWindow('memory')}
-                    onMaximize={() => maximizeWindow('memory')}
                     style={!minimized.memory
                       ? { height: minimized.registers ? '100%' : `${100 - sideHeightPct}%` }
                       : { height: 40 }
