@@ -1,10 +1,26 @@
+// routes/auth.js
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// --- Authentication Middleware for Tab Saving ---
+const authenticate = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.userId = decoded.id;
+        next();
+    } catch (err) {
+        res.status(401).json({ message: 'Invalid token' });
+    }
+};
+
 // register Route
-router.post('/register', async (req, res) => {
+router.post('/register', async(req, res) => {
     const { username, password } = req.body;
 
     try {
@@ -14,6 +30,7 @@ router.post('/register', async (req, res) => {
         }
 
         const user = await User.create({ username, password });
+        console.log(`✅ Registration success: New user '${username}' created.`);
         res.status(201).json({ message: 'User registered successfully' });
     } catch (err) {
         console.error('❌ Registration error:', err);
@@ -22,12 +39,13 @@ router.post('/register', async (req, res) => {
 });
 
 // login Route
-router.post('/login', async (req, res) => {
+router.post('/login', async(req, res) => {
     const { username, password } = req.body;
 
     try {
         const user = await User.findOne({ username });
         if (!user) {
+            console.log(`⚠️ Login failed: Username '${username}' not found in database.`);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
@@ -35,14 +53,42 @@ router.post('/login', async (req, res) => {
         const isMatch = await user.comparePassword(password);
 
         if (!isMatch) {
+            console.log(`⚠️ Login failed: Incorrect password for user '${username}'.`);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        // ---> SUCCESS LOG <---
+        console.log(`🟢 Login success: User '${username}' authenticated and token generated.`);
+
         res.status(200).json({ token, username: user.username });
     } catch (err) {
         console.error('❌ Sign-in error:', err);
         res.status(500).json({ message: 'Error logging in', error: err.message });
+    }
+});
+
+// Get User Tabs
+router.get('/tabs', authenticate, async(req, res) => {
+    try {
+        const user = await User.findById(req.userId);
+        res.status(200).json(user.tabs || []);
+    } catch (err) {
+        console.error('Error fetching tabs:', err);
+        res.status(500).json({ error: 'Server error fetching tabs' });
+    }
+});
+
+// Save User Tabs
+router.post('/tabs', authenticate, async(req, res) => {
+    try {
+        const { tabs } = req.body;
+        await User.findByIdAndUpdate(req.userId, { tabs });
+        res.status(200).json({ message: 'Tabs saved successfully' });
+    } catch (err) {
+        console.error('Error saving tabs:', err);
+        res.status(500).json({ error: 'Server error saving tabs' });
     }
 });
 

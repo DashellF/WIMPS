@@ -1,5 +1,6 @@
-import { router } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+// screens/IdeScreen.tsx
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -27,7 +28,7 @@ import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { WindowWrapper } from '../components/WindowWrapper';
-import { assemble, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
+import { assemble, feedInput, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
 
 import { PageWrapper } from '@/components/PageWrapper';
 import type { Theme } from '../theme/themes';
@@ -89,6 +90,7 @@ interface CodeTab {
   id: string;
   name: string;
   code: string;
+  isDirty?: boolean; 
 }
 
 export default function IdeScreen() {
@@ -96,18 +98,27 @@ export default function IdeScreen() {
   const isWide = width >= 1000;
 
   // --- State ---
-  const [tabs, setTabs] = useState<CodeTab[]>([{ id: '1', name: 'file1.asm', code: '' }]);
+  const [tabs, setTabs] = useState<CodeTab[]>([{ id: '1', name: 'file1.asm', code: '', isDirty: false }]);
   const [activeTabId, setActiveTabId] = useState<string>('1');
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editTabName, setEditTabName] = useState<string>('');
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
+  // Load Menu State
+  const [showLoadMenu, setShowLoadMenu] = useState(false);
+  const [dbFiles, setDbFiles] = useState<CodeTab[]>([]);
+
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('Program output will appear here.');
   const [memoryData, setMemoryData] = useState<any[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showHex, setShowHex] = useState(true);
+
+  // Console Input State
+  const [consoleInput, setConsoleInput] = useState('');
+  const [isWaiting, setIsWaiting] = useState(false);
 
   // Layout Percentages (Desktop Only)
   const [leftPanelPct, setLeftPanelPct] = useState(70);
@@ -127,18 +138,167 @@ export default function IdeScreen() {
   const editorColumnLayout = useRef({ y: 0, height: 0 });
   const sideColumnRef = useRef<View>(null);
   const sideColumnLayout = useRef({ y: 0, height: 0 });
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  const tabsRef = useRef(tabs);
+  const isLoggedInRef = useRef(isLoggedIn);
+  const hasLoadedInitialTabs = useRef(false);
 
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code || '', [tabs, activeTabId]);
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
-  // --- Logic ---
-  const setCode = (newCode: string) => setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code: newCode } : t));
+  useEffect(() => { tabsRef.current = tabs; }, [tabs]);
+  useEffect(() => { isLoggedInRef.current = isLoggedIn; }, [isLoggedIn]);
+
+  // --- Database Save Logic ---
+  const handleSave = async () => {
+    const tabsToSave = tabsRef.current;
+    
+    const cleanTabs = tabsToSave.map(t => ({ ...t, isDirty: false }));
+    if (Platform.OS === 'web') {
+      localStorage.setItem('saved_tabs', JSON.stringify(cleanTabs));
+    }
+
+    if (isLoggedInRef.current) {
+      const token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
+      if (token) {
+        try {
+          const res = await fetch('http://localhost:3001/auth/tabs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ tabs: cleanTabs })
+          });
+          if (!res.ok) throw new Error("Failed to save to database");
+        } catch (err) {
+          console.error(err);
+          return; 
+        }
+      }
+    }
+
+    setTabs(prev => prev.map(pt => {
+      const saved = tabsToSave.find(st => st.id === pt.id);
+      if (saved && saved.code === pt.code) {
+        return { ...pt, isDirty: false };
+      }
+      return pt; 
+    }));
+  };
+
+  // Auto-Save Interval (10 Seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (tabsRef.current.some(t => t.isDirty)) {
+        handleSave();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // --- Load Initial Session ---
+  useFocusEffect(
+    useCallback(() => {
+      const loadSession = async () => {
+        const cookieToken = Cookies.get('token');
+        const localToken = Platform.OS === 'web' ? localStorage.getItem('token') : null;
+        const token = cookieToken || localToken;
+        
+        if (token) {
+          setIsLoggedIn(true);
+          if (!hasLoadedInitialTabs.current) {
+            hasLoadedInitialTabs.current = true;
+            try {
+              const res = await fetch('http://localhost:3001/auth/tabs', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data.length > 0) {
+                  setTabs(data);
+                  setActiveTabId(data[0].id);
+                }
+              }
+            } catch (err) { console.error("Error loading tabs from DB", err); }
+          }
+        } else {
+          setIsLoggedIn(false);
+          if (!hasLoadedInitialTabs.current && Platform.OS === 'web') {
+            hasLoadedInitialTabs.current = true;
+            const localTabs = localStorage.getItem('saved_tabs');
+            if (localTabs) {
+              const parsed = JSON.parse(localTabs);
+              if (parsed && parsed.length > 0) {
+                setTabs(parsed);
+                setActiveTabId(parsed[0].id);
+              }
+            }
+          }
+        }
+      };
+      loadSession();
+    }, [])
+  );
+
+  const handleLogout = () => {
+    Cookies.remove('token');
+    if (Platform.OS === 'web') localStorage.removeItem('token');
+    setIsLoggedIn(false);
+    hasLoadedInitialTabs.current = false; 
+  };
+
+  // --- Load Saved Files Logic ---
+  const handleOpenLoadMenu = async () => {
+    if (showLoadMenu) {
+      setShowLoadMenu(false);
+      return;
+    }
+
+    const token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
+    if (token && isLoggedInRef.current) {
+      try {
+        const res = await fetch('http://localhost:3001/auth/tabs', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDbFiles(data || []);
+        }
+      } catch (err) {
+        console.error("Failed to load DB files", err);
+      }
+    } else if (Platform.OS === 'web') {
+      const localTabs = localStorage.getItem('saved_tabs');
+      if (localTabs) setDbFiles(JSON.parse(localTabs));
+    }
+    
+    setShowLoadMenu(true);
+  };
+
+  const handleSelectDbFile = (file: CodeTab) => {
+    setShowLoadMenu(false);
+    const targetId = file.id;
+
+    setTabs(prev => {
+      const exists = prev.find(t => t.id === targetId);
+      if (!exists) {
+        return [...prev, file];
+      }
+      return prev.map(t => t.id === targetId ? { ...t, code: file.code, isDirty: false } : t);
+    });
+    
+    setActiveTabId(targetId);
+  };
+
+  // --- IDE Logic ---
+  const setCode = (newCode: string) => {
+    setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code: newCode, isDirty: true } : t));
+  };
+
   const toggleWindow = (key: keyof typeof minimized) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMinimized(prev => ({ ...prev, [key]: !prev[key] }));
   };
+
   const toggleTheme = () => {
     setIsDarkMode(prev => {
       const next = !prev;
@@ -146,7 +306,24 @@ export default function IdeScreen() {
       return next;
     });
   };
+
   const updateMemory = () => setMemoryData(getMemoryRange(0x10010000, 20));
+
+  const refreshUI = (state: any) => {
+    if (!state) return;
+    if (state.registers) setRegisters(state.registers);
+    if (state.output !== undefined) setOutput(state.output);
+    setIsWaiting(state.isWaiting || false);
+    updateMemory();
+  };
+
+  const handleSendInput = () => {
+    if (!consoleInput.trim()) return;
+    const input = consoleInput;
+    setConsoleInput('');
+    const state = feedInput(input);
+    refreshUI(state);
+  };
 
   const handleTabPress = (tabId: string) => {
     const now = Date.now();
@@ -159,21 +336,19 @@ export default function IdeScreen() {
     }
   };
 
-  // --- File Tab Actions ---
   const handleAddTab = () => {
     const newId = String(Date.now());
     const newName = `file${tabs.length + 1}.asm`;
-    setTabs(prev => [...prev, { id: newId, name: newName, code: '' }]);
+    setTabs(prev => [...prev, { id: newId, name: newName, code: '', isDirty: true }]);
     setActiveTabId(newId);
   };
 
   const handleCloseTab = (tabId: string) => {
-    if (tabs.length === 1) return; // Don't close the last tab
+    if (tabs.length === 1) return; 
     const idx = tabs.findIndex(t => t.id === tabId);
     const newTabs = tabs.filter(t => t.id !== tabId);
     setTabs(newTabs);
     if (activeTabId === tabId) {
-      // Switch to adjacent tab
       const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
       setActiveTabId(nextTab.id);
     }
@@ -184,7 +359,6 @@ export default function IdeScreen() {
     if (!activeTab) return;
 
     if (Platform.OS === 'web') {
-      // Web: trigger browser download
       const blob = new Blob([activeTab.code], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -193,7 +367,6 @@ export default function IdeScreen() {
       a.click();
       URL.revokeObjectURL(url);
     } else {
-      // iOS / Android: write to cache then open native share sheet
       try {
         const fileUri = FileSystem.cacheDirectory + activeTab.name;
         await FileSystem.writeAsStringAsync(fileUri, activeTab.code, {
@@ -224,7 +397,7 @@ export default function IdeScreen() {
         reader.onload = (ev) => {
           const text = ev.target?.result as string;
           const newId = String(Date.now());
-          setTabs(prev => [...prev, { id: newId, name: file.name, code: text }]);
+          setTabs(prev => [...prev, { id: newId, name: file.name, code: text, isDirty: true }]);
           setActiveTabId(newId);
         };
         reader.readAsText(file);
@@ -242,7 +415,7 @@ export default function IdeScreen() {
           encoding: FileSystem.EncodingType.UTF8,
         });
         const newId = String(Date.now());
-        setTabs(prev => [...prev, { id: newId, name: asset.name ?? 'uploaded.asm', code: text }]);
+        setTabs(prev => [...prev, { id: newId, name: asset.name ?? 'uploaded.asm', code: text, isDirty: true }]);
         setActiveTabId(newId);
       } catch (err) {
         console.error('Upload failed:', err);
@@ -252,7 +425,7 @@ export default function IdeScreen() {
 
   const handleCommitTabName = () => {
     if (editingTabId && editTabName.trim()) {
-      setTabs(prev => prev.map(t => t.id === editingTabId ? { ...t, name: editTabName.trim() } : t));
+      setTabs(prev => prev.map(t => t.id === editingTabId ? { ...t, name: editTabName.trim(), isDirty: true } : t));
     }
     setEditingTabId(null);
   };
@@ -261,22 +434,38 @@ export default function IdeScreen() {
     { label: 'Assemble', icon: require('../../assets/images/assemble_icon.png'), onPress: () => {
         const r = assemble(activeCode);
         if (!r.ok) setOutput(`Assembly error:\n${r.error}`);
-        else { setRegisters(getState()?.registers || []); updateMemory(); setOutput('Assembled successfully.'); }
+        else { refreshUI(getState()); setOutput('Assembled successfully.'); }
     }},
     { label: 'Run', icon: require('../../assets/images/run_icon.png'), onPress: () => {
-        const r = runSim();
-        if ('error' in r) setOutput(`Runtime error:\n${r.error}`);
-        else { setRegisters(r.registers); updateMemory(); setOutput(r.output || 'Program finished.'); }
+        const state = runSim();
+        if (state && 'error' in state) {
+          setOutput(`Runtime error:\n${state.error}`);
+          setIsWaiting(false);
+        } else {
+          refreshUI(state);
+        }
     }},
     { label: 'Step', icon: require('../../assets/images/step_icon.png'), onPress: () => {
-        const r = stepSim();
-        if ('error' in r) setOutput(`Step error:\n${r.error}`);
-        else { setRegisters(r.registers); updateMemory(); setOutput(`PC: 0x${r.pc.toString(16).padStart(8, '0')}\n` + r.output); }
+        const state = stepSim();
+        if (state && 'error' in state) {
+          setOutput(`Step error:\n${state.error}`);
+          setIsWaiting(false);
+        } else {
+          refreshUI(state);
+          // Preserve the prepended PC from your original version if output isn't already formatted
+          if (state && state.pc !== undefined) {
+             setOutput(`PC: 0x${state.pc.toString(16).padStart(8, '0')}\n` + (state.output || ''));
+          }
+        }
     }},
     { label: 'Reset', icon: require('../../assets/images/reset_icon.png'), onPress: () => {
-        resetSim(); setRegisters(buildInitialRegisters()); setOutput('Reset.');
+        resetSim(); 
+        setRegisters(buildInitialRegisters()); 
+        setOutput('Reset.');
+        setIsWaiting(false);
+        setMemoryData([]);
     }},
-  ], [activeCode]);
+  ], [activeCode, consoleInput]);
 
   // --- Desktop Resizer Handlers ---
   const panResponderHorizontal = useMemo(() => PanResponder.create({
@@ -317,7 +506,32 @@ export default function IdeScreen() {
     onPanResponderRelease: () => setIsResizing(false),
   }), []);
 
-  // --- Shared Tab ScrollView (tabs only, no action buttons) ---
+  // --- Dropdown Menu Renderers ---
+  const renderLoadMenu = (isDesktop: boolean) => {
+    if (!showLoadMenu) return null;
+    return (
+      <View style={[styles.loadDropdownMenu, isDesktop ? styles.loadDropdownDesktop : styles.loadDropdownMobile, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+        <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled={true} keyboardShouldPersistTaps="always">
+          {dbFiles.length === 0 ? (
+            <Text style={{ padding: 12, color: activeTheme.subText, fontStyle: 'italic' }}>No saved files.</Text>
+          ) : (
+            dbFiles.map(file => (
+              <TouchableOpacity
+                key={file.id}
+                style={[styles.dropdownItem, { borderBottomColor: activeTheme.border }]}
+                onPressIn={() => handleSelectDbFile(file)}
+                delayPressIn={0}
+              >
+                <Text style={{ color: activeTheme.text }} numberOfLines={1}>{file.name}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // --- Shared Tab ScrollView ---
   const renderTabScrollView = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
       {tabs.map((tab) => (
@@ -338,7 +552,7 @@ export default function IdeScreen() {
                 fontWeight: activeTabId === tab.id ? '600' : '400',
                 marginRight: tabs.length > 1 ? 4 : 8,
               }}>
-                {tab.name}
+                {tab.name}{isLoggedIn && tab.isDirty ? '*' : ''}
               </Text>
             )}
           </TouchableOpacity>
@@ -352,21 +566,40 @@ export default function IdeScreen() {
     </ScrollView>
   );
 
-  // --- Desktop Tab Bar (tabs left, actions right-aligned) ---
+  // --- Desktop Tab Bar ---
   const renderDesktopTabBar = () => (
-    <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+    <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border, zIndex: 100 }]}>
       {renderTabScrollView()}
-      {/* Right-aligned actions: Upload, Download, New File */}
-      <View style={styles.desktopTabActions}>
+      <View style={[styles.desktopTabActions, { zIndex: 100 }]}>
+        
+        {isLoggedIn && (
+          <>
+            <TouchableOpacity onPress={handleSave} style={[styles.desktopFileBtn, { borderColor: activeTheme.border }]}>
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: activeTheme.text, fontSize: 16 }}>💾</Text>
+              </View>
+            </TouchableOpacity>
+            
+            <View style={{ position: 'relative', zIndex: 100 }}>
+              <TouchableOpacity onPress={handleOpenLoadMenu} style={[styles.desktopFileBtn, { borderColor: activeTheme.border }]}>
+                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: activeTheme.text, fontSize: 16 }}>📂</Text>
+                </View>
+              </TouchableOpacity>
+              {renderLoadMenu(true)}
+            </View>
+          </>
+        )}
+
         <TouchableOpacity onPress={handleUpload} style={[styles.desktopFileBtn, { borderColor: activeTheme.border }]}>
           <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↑</Text>
+            <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16, transform: [{ translateY: 2 }] }}>↑</Text>
             <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
           </View>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleDownload} style={[styles.desktopFileBtn, { borderColor: activeTheme.border }]}>
           <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↓</Text>
+            <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16, transform: [{ translateY: 2 }] }}>↓</Text>
             <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
           </View>
         </TouchableOpacity>
@@ -377,7 +610,7 @@ export default function IdeScreen() {
     </View>
   );
 
-  // --- Mobile Tab Bar (tabs + + button) ---
+  // --- Mobile Tab Bar ---
   const renderTabBar = () => (
     <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
       {renderTabScrollView()}
@@ -388,17 +621,39 @@ export default function IdeScreen() {
   );
 
   const renderMobileFileActions = () => (
-    <View style={[styles.mobileFileActionsBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+    <View style={[styles.mobileFileActionsBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border, zIndex: 100 }]}>
+      
+      {isLoggedIn && (
+        <>
+          <TouchableOpacity onPress={handleSave} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: activeTheme.text, fontSize: 16 }}>💾</Text>
+            </View>
+            <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Save</Text>
+          </TouchableOpacity>
+          
+          <View style={{ flex: 1, position: 'relative', zIndex: 100 }}>
+            <TouchableOpacity onPress={handleOpenLoadMenu} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border, borderLeftWidth: 0 }]}>
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: activeTheme.text, fontSize: 16 }}>📂</Text>
+              </View>
+              <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Load</Text>
+            </TouchableOpacity>
+            {renderLoadMenu(false)}
+          </View>
+        </>
+      )}
+
       <TouchableOpacity onPress={handleUpload} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↑</Text>
+          <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16, transform: [{ translateY: 2 }] }}>↑</Text>
           <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
         </View>
         <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Upload</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={handleDownload} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16 }}>↓</Text>
+          <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16, transform: [{ translateY: 2 }] }}>↓</Text>
           <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
         </View>
         <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Download</Text>
@@ -406,10 +661,28 @@ export default function IdeScreen() {
     </View>
   );
 
+  const LogoutSymbol = ({ color = '#ffffff' }: { color?: string }) => (
+    <View style={{ width: 24, height: 18, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ position: 'absolute', right: 4, width: 12, height: 18, borderTopWidth: 2, borderRightWidth: 2, borderBottomWidth: 2, borderColor: color }} />
+      <View style={{ position: 'absolute', right: 16, top: 0, width: 2, height: 5, backgroundColor: color }} />
+      <View style={{ position: 'absolute', right: 16, bottom: 0, width: 2, height: 5, backgroundColor: color }} />
+      <Text style={{ position: 'absolute', right: 8, transform: [{ translateY: -2 }], color: color, fontWeight: '700', fontSize: 16, lineHeight: 18 }}>←</Text>
+    </View>
+  );
+
   return (
     <PageWrapper>
       <SafeAreaView style={[tStyles.safeArea, isResizing && styles.noSelect]}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
+        
+        {showLoadMenu && (
+          <TouchableOpacity 
+            style={[StyleSheet.absoluteFill, { zIndex: 90 }]} 
+            activeOpacity={1} 
+            onPress={() => setShowLoadMenu(false)} 
+          />
+        )}
+
         <View style={tStyles.container}>
 
           {/* TOP BAR */}
@@ -429,8 +702,18 @@ export default function IdeScreen() {
               </View>
               {isWide ? (
                 <>
-                  <TouchableOpacity style={tStyles.secondaryButton} onPress={() => router.push('/docs')}><Text style={tStyles.secondaryButtonText}>Docs</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/login')}><Text style={styles.primaryButtonText}>Login</Text></TouchableOpacity>
+                  <TouchableOpacity style={tStyles.secondaryButton} onPress={() => router.push('/docs')}>
+                    <Text style={tStyles.secondaryButtonText}>Docs</Text>
+                  </TouchableOpacity>
+                  {isLoggedIn ? (
+                    <TouchableOpacity style={[styles.primaryButton, { paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center', alignItems: 'center' }]} onPress={handleLogout}>
+                      <LogoutSymbol color="#ffffff" />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/login')}>
+                      <Text style={styles.primaryButtonText}>Login</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               ) : (
                 <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.menuIcon}>
@@ -443,8 +726,20 @@ export default function IdeScreen() {
           {/* MOBILE MENU */}
           {menuOpen && !isWide && (
             <View style={[styles.mobileMenu, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
-              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/docs')}><Text style={{ color: activeTheme.text }}>Docs</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/login')}><Text style={{ color: activeTheme.text }}>Login</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { router.push('/docs'); setMenuOpen(false); }}>
+                <Text style={{ color: activeTheme.text }}>Docs</Text>
+              </TouchableOpacity>
+              {isLoggedIn ? (
+                <TouchableOpacity style={[styles.menuItem, { alignItems: 'center' }]} onPress={() => { handleLogout(); setMenuOpen(false); }}>
+                  <View style={[styles.primaryButton, { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }]}>
+                    <LogoutSymbol color="#ffffff" />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.menuItem} onPress={() => { router.push('/login'); setMenuOpen(false); }}>
+                  <Text style={{ color: activeTheme.text }}>Login</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -452,13 +747,16 @@ export default function IdeScreen() {
             /* --- DESKTOP VIEW --- */
             <View style={styles.desktopContent}>
               {(!minimized.editor || !minimized.console) && (
-                <View ref={editorColumnRef} style={[styles.editorColumn, { width: (minimized.registers && minimized.memory) ? '100%' : `${leftPanelPct}%` }]}>
+                <View ref={editorColumnRef} style={[styles.editorColumn, { width: (minimized.registers && minimized.memory) ? '100%' : `${leftPanelPct}%`, zIndex: 100 }]}>
                   <WindowWrapper 
                     title="MIPS Editor" 
                     theme={activeTheme} 
                     isMinimized={minimized.editor} 
                     onToggleMinimize={() => toggleWindow('editor')} 
-                    style={!minimized.editor ? { height: minimized.console ? 'calc(100% - 24px)' : `${editorHeightPct}%` } : { height: 40 }}
+                    style={[
+                      !minimized.editor ? { height: minimized.console ? 'calc(100% - 24px)' : `${editorHeightPct}%` } : { height: 40 },
+                      { overflow: 'visible', zIndex: 100 }
+                    ]}
                   >
                     {!minimized.editor && renderDesktopTabBar()}
                     <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
@@ -475,7 +773,24 @@ export default function IdeScreen() {
                     onToggleMinimize={() => toggleWindow('console')} 
                     style={!minimized.console ? { height: minimized.editor ? '100%' : `${100 - editorHeightPct}%` } : { height: 40 }}
                   >
-                    <View style={[tStyles.consoleCard, { flex: 1 }]}><ScrollView><Text style={tStyles.consoleText}>{output}</Text></ScrollView></View>
+                    <View style={{ flex: 1, backgroundColor: activeTheme.card }}>
+                      <ScrollView style={{ flex: 1, padding: 14 }}>
+                        <Text style={tStyles.consoleText}>{output}</Text>
+                        {isWaiting && <Text style={{ color: '#2563eb', fontWeight: 'bold', marginTop: 8 }}>[WAITING FOR INPUT...]</Text>}
+                      </ScrollView>
+                      <View style={[styles.consoleInputBar, { borderColor: activeTheme.border }]}>
+                        <Text style={{ color: activeTheme.subText, fontFamily: 'monospace', marginRight: 4 }}>$</Text>
+                        <TextInput
+                          style={{ flex: 1, color: activeTheme.text, fontFamily: 'monospace' }}
+                          value={consoleInput}
+                          onChangeText={setConsoleInput}
+                          placeholder="Type input here..."
+                          placeholderTextColor={activeTheme.subText}
+                          onSubmitEditing={handleSendInput}
+                          blurOnSubmit={false}
+                        />
+                      </View>
+                    </View>
                   </WindowWrapper>
                 </View>
               )}
@@ -503,17 +818,33 @@ export default function IdeScreen() {
             <View style={styles.mobileContent}>
               <View style={styles.mobileMainArea}>
                 {mobileView === 'editor' && (
-                  <WindowWrapper title="Editor" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%' }}>
-                    {/* Mobile File Actions Bar */}
+                  <WindowWrapper title="Editor" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%', overflow: 'visible', zIndex: 100 }}>
                     {renderMobileFileActions()}
-                    {/* Mobile Tab Bar */}
                     {renderTabBar()}
                     <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
                 )}
                 {mobileView === 'console' && (
                   <WindowWrapper title="Console" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%' }}>
-                    <View style={[tStyles.consoleCard, { flex: 1 }]}><ScrollView><Text style={tStyles.consoleText}>{output}</Text></ScrollView></View>
+                    <View style={{ flex: 1, backgroundColor: activeTheme.card }}>
+                      <ScrollView style={{ flex: 1, padding: 14 }}>
+                        <Text style={tStyles.consoleText}>{output}</Text>
+                        {isWaiting && <Text style={{ color: '#2563eb', fontWeight: 'bold', marginTop: 8 }}>[WAITING FOR INPUT...]</Text>}
+                      </ScrollView>
+                      <View style={[styles.consoleInputBar, { borderColor: activeTheme.border }]}>
+                        <Text style={{ color: activeTheme.subText, fontFamily: 'monospace', marginRight: 4 }}>$</Text>
+                        <TextInput
+                          style={{ flex: 1, color: activeTheme.text, fontFamily: 'monospace' }}
+                          value={consoleInput}
+                          onChangeText={setConsoleInput}
+                          placeholder="Type input here..."
+                          placeholderTextColor={activeTheme.subText}
+                          onSubmitEditing={handleSendInput}
+                          blurOnSubmit={false}
+                        />
+                        <TouchableOpacity onPress={handleSendInput}><Text style={{ color: '#2563eb', fontWeight: '700', marginLeft: 8 }}>SEND</Text></TouchableOpacity>
+                      </View>
+                    </View>
                   </WindowWrapper>
                 )}
                 {mobileView === 'registers' && (
@@ -550,7 +881,7 @@ export default function IdeScreen() {
 
 const getThemeStyles = (theme: Theme) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.bg },
-  container: { flex: 1, backgroundColor: theme.bg, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
+  container: { flex: 1, backgroundColor: theme.bg, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, zIndex: 100 },
   secondaryButton: { borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: theme.btnBg },
   secondaryButtonText: { color: theme.text, fontWeight: '600' },
   consoleCard: { flex: 1, backgroundColor: theme.card, padding: 14 },
@@ -569,18 +900,18 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: '#2563eb', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   primaryButtonText: { color: '#ffffff', fontWeight: '600' },
   desktopContent: { flex: 1, flexDirection: 'row' },
-  editorColumn: { height: '100%', paddingRight: 4, paddingBottom: 12 },
+  editorColumn: { height: '100%', paddingRight: 4, paddingBottom: 12, zIndex: 100 },
   sideColumn: { height: '100%', paddingLeft: 4 },
   resizerVertical: { width: 16, justifyContent: 'center', alignItems: 'center', cursor: 'col-resize' as any },
   resizerHorizontal: { height: 16, justifyContent: 'center', alignItems: 'center', cursor: 'row-resize' as any, zIndex: 10 },
   mobileContent: { flex: 1, flexDirection: 'column' },
-  mobileMainArea: { flex: 1 },
+  mobileMainArea: { flex: 1, zIndex: 100 },
   mobileTabBar: { flexDirection: 'row', height: 60, borderTopWidth: 1 },
   mobileTabButton: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   menuIcon: { padding: 4 },
   mobileMenu: { position: 'absolute', top: 60, right: 16, width: 140, borderRadius: 10, borderWidth: 1, zIndex: 100, padding: 8 },
   menuItem: { padding: 12 },
-  editorTabBar: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'center' },
+  editorTabBar: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'center', zIndex: 100 },
   editorTab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2 },
   tabCloseBtn: { paddingHorizontal: 4, paddingVertical: 2, marginLeft: 2 },
   tabActionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderLeftWidth: 1, justifyContent: 'center', alignItems: 'center' },
@@ -588,11 +919,12 @@ const styles = StyleSheet.create({
   switchTrack: { width: 58, height: 32, borderRadius: 16, borderWidth: 2, justifyContent: 'center' },
   switchThumb: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   switchIcon: { fontSize: 12, fontWeight: 'bold' },
-  // Desktop tab row action group (right-aligned)
+  
   desktopTabActions: {
     flexDirection: 'row',
     alignItems: 'stretch',
     marginLeft: 'auto' as any,
+    zIndex: 100,
   },
   desktopFileBtn: {
     flexDirection: 'column',
@@ -602,17 +934,19 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderLeftWidth: 1,
     gap: 0,
+    height: '100%',
   },
   desktopFileBtnLast: {
     paddingHorizontal: 13,
   },
-  // Mobile file actions bar
+  
   mobileFileActionsBar: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     paddingHorizontal: 4,
     paddingVertical: 4,
     gap: 4,
+    zIndex: 100,
   },
   mobileFileActionBtn: {
     flex: 1,
@@ -630,5 +964,41 @@ const styles = StyleSheet.create({
   mobileFileActionLabel: {
     fontSize: 11,
     fontWeight: '600',
+  },
+
+  loadDropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    borderWidth: 1,
+    borderRadius: 8,
+    zIndex: 9999, 
+    elevation: 9999,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    overflow: 'hidden',
+  },
+  loadDropdownDesktop: {
+    right: 0,
+    width: 200,
+    marginTop: 4,
+  },
+  loadDropdownMobile: {
+    left: 0,
+    width: 180,
+    marginTop: 4,
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14, 
+    borderBottomWidth: 1,
+  },
+  consoleInputBar: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 10, 
+    borderTopWidth: 1, 
+    backgroundColor: 'rgba(0,0,0,0.03)' 
   },
 });

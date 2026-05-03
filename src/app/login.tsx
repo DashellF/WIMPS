@@ -1,12 +1,13 @@
 import { PageWrapper } from '@/components/PageWrapper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import Cookies from 'js-cookie'; //
+import Cookies from 'js-cookie';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
   LayoutAnimation,
+  Platform,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -62,11 +63,11 @@ export default function LoginScreen() {
     LayoutAnimation.configureNext(LayoutAnimation.create(150, 'easeInEaseOut', 'opacity'));
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    Cookies.set('theme', newMode ? 'dark' : 'light', { expires: 365 }); //
+    Cookies.set('theme', newMode ? 'dark' : 'light', { expires: 365 }); 
   };
 
   useEffect(() => {
-    const savedTheme = Cookies.get('theme'); //
+    const savedTheme = Cookies.get('theme'); 
     if (savedTheme) {
       setIsDarkMode(savedTheme === 'dark');
     }
@@ -84,7 +85,17 @@ export default function LoginScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
+      
+      // Keep your original Web/Cookie logic so index.tsx doesn't break
+      Cookies.set('token', data.token, { expires: 1 }); // Expires in 1 day
+      
+      if (Platform.OS === 'web') {
+        localStorage.setItem('token', data.token);
+      }
+
+      // Add your friend's Mobile/AsyncStorage logic
       await AsyncStorage.setItem('@auth_token', data.token);
+
       router.push('/');
     } catch (err: any) {
       setError(err.message);

@@ -1,3 +1,4 @@
+// models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
@@ -12,6 +13,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    // Added to store the user's open files/tabs
+    tabs: {
+        type: Array,
+        default: []
+    }
 });
 
 // Hash password before saving
@@ -22,7 +28,7 @@ userSchema.pre('save', async function() {
     // 2. Hash the password
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    
+
     // 3. No next() call here! 
     // Mongoose waits for this async function to finish.
 });
