@@ -1,5 +1,4 @@
 // screens/IdeScreen.tsx
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -30,6 +29,7 @@ import { MemoryView } from '../components/MemoryView';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { WindowWrapper } from '../components/WindowWrapper';
 import { assemble, feedInput, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
+import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStorage';
 
 import { PageWrapper } from '@/components/PageWrapper';
 import type { Theme } from '../theme/themes';
@@ -40,6 +40,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
 
 // --- Helper Components ---
 interface ThemeSwitchProps {
@@ -101,7 +102,7 @@ export default function IdeScreen() {
   const isWide = width >= 1000;
 
   // --- State ---
-  const [tabs, setTabs] = useState<CodeTab[]>([{ id: '1', name: 'file1.asm', code: '', isDirty: false }]);
+  const [tabs, setTabs] = useState<CodeTab[]>(DEFAULT_TABS);
   const [activeTabId, setActiveTabId] = useState<string>('1');
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editTabName, setEditTabName] = useState<string>('');
@@ -143,48 +144,85 @@ export default function IdeScreen() {
   const sideColumnLayout = useRef({ y: 0, height: 0 });
 
   const tabsRef = useRef(tabs);
-  const isLoggedInRef = useRef(isLoggedIn);
-  const hasLoadedInitialTabs = useRef(false);
+  const loadedSessionKeyRef = useRef<string | null>(null);
 
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code || '', [tabs, activeTabId]);
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
-  useEffect(() => { isLoggedInRef.current = isLoggedIn; }, [isLoggedIn]);
+
+  const readLocalTabs = (): CodeTab[] => {
+    if (Platform.OS !== 'web') return [];
+
+    try {
+      const localTabs = localStorage.getItem('saved_tabs');
+      const parsed = localTabs ? JSON.parse(localTabs) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      console.error('Failed to read local saved tabs', err);
+      return [];
+    }
+  };
+
+  const writeLocalTabs = (tabsToWrite: CodeTab[]) => {
+    if (Platform.OS !== 'web') return;
+
+    try {
+      localStorage.setItem('saved_tabs', JSON.stringify(tabsToWrite));
+    } catch (err) {
+      console.error('Failed to write local saved tabs', err);
+    }
+  };
+
+  const fetchDbTabs = async (token: string): Promise<CodeTab[]> => {
+    const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
+      headers: getApiHeaders(token),
+    });
+
+    if (res.status === 401) {
+      await clearAuthToken();
+      setIsLoggedIn(false);
+      loadedSessionKeyRef.current = null;
+      throw new Error('Your login expired. Please sign in again.');
+    }
+
+    if (!res.ok) {
+      throw new Error(`Failed to load saved files (${res.status})`);
+    }
+
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  };
 
   // --- Database Save Logic ---
   const handleSave = async () => {
     const tabsToSave = tabsRef.current;
-    
     const cleanTabs = tabsToSave.map(t => ({ ...t, isDirty: false }));
-    if (Platform.OS === 'web') {
-      localStorage.setItem('saved_tabs', JSON.stringify(cleanTabs));
-    }
+    const token = await getAuthToken();
 
-    if (isLoggedInRef.current) {
-      let token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
-      if (Platform.OS !== 'web' && !token) {
-        try {
-          token = await AsyncStorage.getItem('@auth_token');
-        } catch (e) {
-          console.error("AsyncStorage get token failed in save", e);
-        }
-      }
+    if (token) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
+          method: 'POST',
+          headers: getApiHeaders(token, true),
+          body: JSON.stringify({ tabs: cleanTabs })
+        });
 
-      if (token) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ tabs: cleanTabs })
-          });
-          if (!res.ok) throw new Error("Failed to save to database");
-        } catch (err) {
-          console.error(err);
-          return; 
+        if (res.status === 401) {
+          await clearAuthToken();
+          setIsLoggedIn(false);
+          loadedSessionKeyRef.current = null;
+          throw new Error('Your login expired. Please sign in again.');
         }
+
+        if (!res.ok) throw new Error(`Failed to save to database (${res.status})`);
+      } catch (err) {
+        console.error(err);
+        return;
       }
+    } else if (Platform.OS === 'web') {
+      writeLocalTabs(cleanTabs);
     }
 
     setTabs(prev => prev.map(pt => {
@@ -192,7 +230,7 @@ export default function IdeScreen() {
       if (saved && saved.code === pt.code) {
         return { ...pt, isDirty: false };
       }
-      return pt; 
+      return pt;
     }));
   };
 
@@ -209,74 +247,66 @@ export default function IdeScreen() {
   // --- Load Initial Session ---
   useFocusEffect(
     useCallback(() => {
-      const loadSession = async () => {
-        const cookieToken = Cookies.get('token');
-        const localToken = Platform.OS === 'web' ? localStorage.getItem('token') : null;
-        
-        // Add the AsyncStorage check for mobile
-        let asyncToken = null;
-        if (Platform.OS !== 'web') {
-          try {
-            asyncToken = await AsyncStorage.getItem('@auth_token');
-          } catch (e) {
-            console.error("AsyncStorage error", e);
-          }
-        }
+      let cancelled = false;
 
-        // Check if ANY of the methods returned a token
-        const token = cookieToken || localToken || asyncToken;
-        
+      const loadSession = async () => {
+        const token = await getAuthToken();
+
+        if (cancelled) return;
+
         if (token) {
           setIsLoggedIn(true);
-          if (!hasLoadedInitialTabs.current) {
-            hasLoadedInitialTabs.current = true;
-            try {
-              const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data && data.length > 0) {
-                  setTabs(data);
-                  setActiveTabId(data[0].id);
-                }
-              }
-            } catch (err) { console.error("Error loading tabs from DB", err); }
-          }
-        } else {
-          setIsLoggedIn(false);
-          if (!hasLoadedInitialTabs.current && Platform.OS === 'web') {
-            hasLoadedInitialTabs.current = true;
-            const localTabs = localStorage.getItem('saved_tabs');
-            if (localTabs) {
-              const parsed = JSON.parse(localTabs);
-              if (parsed && parsed.length > 0) {
-                setTabs(parsed);
-                setActiveTabId(parsed[0].id);
-              }
+
+          const sessionKey = `auth:${token}`;
+          if (loadedSessionKeyRef.current === sessionKey) return;
+          loadedSessionKeyRef.current = sessionKey;
+
+          try {
+            const data = await fetchDbTabs(token);
+            if (cancelled) return;
+
+            setDbFiles(data);
+            if (data.length > 0) {
+              setTabs(data);
+              setActiveTabId(data[0].id);
+            } else {
+              setTabs(DEFAULT_TABS);
+              setActiveTabId(DEFAULT_TABS[0].id);
             }
+          } catch (err) {
+            console.error('Error loading tabs from DB', err);
+          }
+
+          return;
+        }
+
+        setIsLoggedIn(false);
+
+        if (Platform.OS === 'web' && loadedSessionKeyRef.current !== 'guest:web') {
+          loadedSessionKeyRef.current = 'guest:web';
+          const localTabs = readLocalTabs();
+          if (localTabs.length > 0) {
+            setTabs(localTabs);
+            setActiveTabId(localTabs[0].id);
           }
         }
       };
+
       loadSession();
+
+      return () => {
+        cancelled = true;
+      };
     }, [])
   );
 
   const handleLogout = async () => {
-    Cookies.remove('token');
-    if (Platform.OS === 'web') localStorage.removeItem('token');
-    
-    // Clear mobile storage on logout
-    if (Platform.OS !== 'web') {
-      try {
-        await AsyncStorage.removeItem('@auth_token');
-      } catch (e) {
-        console.error("Failed to clear AsyncStorage", e);
-      }
-    }
-    
+    await clearAuthToken();
     setIsLoggedIn(false);
-    hasLoadedInitialTabs.current = false; 
+    loadedSessionKeyRef.current = null;
+    setDbFiles([]);
+    setTabs(DEFAULT_TABS);
+    setActiveTabId(DEFAULT_TABS[0].id);
   };
 
   // --- Load Saved Files Logic ---
@@ -286,30 +316,23 @@ export default function IdeScreen() {
       return;
     }
 
-    let token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
-    if (Platform.OS !== 'web' && !token) {
-      try {
-        token = await AsyncStorage.getItem('@auth_token');
-      } catch (e) {}
-    }
+    const token = await getAuthToken();
 
-    if (token && isLoggedInRef.current) {
+    if (token) {
+      setIsLoggedIn(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setDbFiles(data || []);
-        }
+        const data = await fetchDbTabs(token);
+        setDbFiles(data);
       } catch (err) {
-        console.error("Failed to load DB files", err);
+        console.error('Failed to load DB files', err);
+        setDbFiles([]);
       }
     } else if (Platform.OS === 'web') {
-      const localTabs = localStorage.getItem('saved_tabs');
-      if (localTabs) setDbFiles(JSON.parse(localTabs));
+      setDbFiles(readLocalTabs());
+    } else {
+      setDbFiles([]);
     }
-    
+
     setShowLoadMenu(true);
   };
 

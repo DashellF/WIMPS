@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 
 import Cookies from 'js-cookie';
+import { getApiHeaders } from '../helpers/authStorage';
 import { THEMES } from '../theme/themes';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -94,7 +95,7 @@ export default function RegisterScreen() {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(null, true),
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();

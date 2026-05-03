@@ -7,7 +7,14 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 
 const app = express();
-app.use(cors());
+
+const corsOptions = {
+    origin: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/auth', authRoutes);
 

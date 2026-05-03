@@ -73,7 +73,11 @@ router.post('/login', async(req, res) => {
 router.get('/tabs', authenticate, async(req, res) => {
     try {
         const user = await User.findById(req.userId);
-        res.status(200).json(user.tabs || []);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.status(200).json(Array.isArray(user.tabs) ? user.tabs : []);
     } catch (err) {
         console.error('Error fetching tabs:', err);
         res.status(500).json({ error: 'Server error fetching tabs' });
@@ -84,7 +88,15 @@ router.get('/tabs', authenticate, async(req, res) => {
 router.post('/tabs', authenticate, async(req, res) => {
     try {
         const { tabs } = req.body;
-        await User.findByIdAndUpdate(req.userId, { tabs });
+        if (!Array.isArray(tabs)) {
+            return res.status(400).json({ error: 'tabs must be an array' });
+        }
+
+        const user = await User.findByIdAndUpdate(req.userId, { tabs }, { new: true });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
         res.status(200).json({ message: 'Tabs saved successfully' });
     } catch (err) {
         console.error('Error saving tabs:', err);

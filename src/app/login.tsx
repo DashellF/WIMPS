@@ -1,5 +1,4 @@
 import { PageWrapper } from '@/components/PageWrapper';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import Cookies from 'js-cookie';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +6,6 @@ import {
   Animated,
   Image,
   LayoutAnimation,
-  Platform,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -16,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { getApiHeaders, saveAuthToken } from '../helpers/authStorage';
 import { THEMES } from '../theme/themes';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -83,23 +82,15 @@ export default function LoginScreen() {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(null, true),
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
       
-      // Keep your original Web/Cookie logic so index.tsx doesn't break
-      Cookies.set('token', data.token, { expires: 1 }); // Expires in 1 day
-      
-      if (Platform.OS === 'web') {
-        localStorage.setItem('token', data.token);
-      }
+      await saveAuthToken(data.token);
 
-      // Add your friend's Mobile/AsyncStorage logic
-      await AsyncStorage.setItem('@auth_token', data.token);
-
-      router.push('/');
+      router.replace('/');
     } catch (err: any) {
       setError(err.message);
     }
