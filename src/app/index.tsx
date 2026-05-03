@@ -1,4 +1,5 @@
 // screens/IdeScreen.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,10 +39,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-
-const API_BASE_URL = Platform.OS === 'web' 
-  ? 'http://localhost:3001' 
-  : process.env.EXPO_PUBLIC_API_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // --- Helper Components ---
 interface ThemeSwitchProps {
@@ -165,7 +163,15 @@ export default function IdeScreen() {
     }
 
     if (isLoggedInRef.current) {
-      const token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
+      let token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
+      if (Platform.OS !== 'web' && !token) {
+        try {
+          token = await AsyncStorage.getItem('@auth_token');
+        } catch (e) {
+          console.error("AsyncStorage get token failed in save", e);
+        }
+      }
+
       if (token) {
         try {
           const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
@@ -206,7 +212,19 @@ export default function IdeScreen() {
       const loadSession = async () => {
         const cookieToken = Cookies.get('token');
         const localToken = Platform.OS === 'web' ? localStorage.getItem('token') : null;
-        const token = cookieToken || localToken;
+        
+        // Add the AsyncStorage check for mobile
+        let asyncToken = null;
+        if (Platform.OS !== 'web') {
+          try {
+            asyncToken = await AsyncStorage.getItem('@auth_token');
+          } catch (e) {
+            console.error("AsyncStorage error", e);
+          }
+        }
+
+        // Check if ANY of the methods returned a token
+        const token = cookieToken || localToken || asyncToken;
         
         if (token) {
           setIsLoggedIn(true);
@@ -244,9 +262,19 @@ export default function IdeScreen() {
     }, [])
   );
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Cookies.remove('token');
     if (Platform.OS === 'web') localStorage.removeItem('token');
+    
+    // Clear mobile storage on logout
+    if (Platform.OS !== 'web') {
+      try {
+        await AsyncStorage.removeItem('@auth_token');
+      } catch (e) {
+        console.error("Failed to clear AsyncStorage", e);
+      }
+    }
+    
     setIsLoggedIn(false);
     hasLoadedInitialTabs.current = false; 
   };
@@ -258,7 +286,13 @@ export default function IdeScreen() {
       return;
     }
 
-    const token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
+    let token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
+    if (Platform.OS !== 'web' && !token) {
+      try {
+        token = await AsyncStorage.getItem('@auth_token');
+      } catch (e) {}
+    }
+
     if (token && isLoggedInRef.current) {
       try {
         const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
@@ -457,7 +491,6 @@ export default function IdeScreen() {
           setIsWaiting(false);
         } else {
           refreshUI(state);
-          // Preserve the prepended PC from your original version if output isn't already formatted
           if (state && state.pc !== undefined) {
              setOutput(`PC: 0x${state.pc.toString(16).padStart(8, '0')}\n` + (state.output || ''));
           }
@@ -619,36 +652,30 @@ export default function IdeScreen() {
   const renderTabBar = () => (
     <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
       {renderTabScrollView()}
-      <TouchableOpacity onPress={handleAddTab} style={[styles.tabActionBtn, { borderColor: activeTheme.border }]}>
-        <Text style={{ color: activeTheme.subText, fontSize: 16, fontWeight: '300' }}>+</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', alignItems: 'stretch', zIndex: 100 }}>
+        {isLoggedIn && (
+          <>
+            <TouchableOpacity onPress={handleSave} style={[styles.tabActionBtn, { borderColor: activeTheme.border }]}>
+              <Text style={{ color: activeTheme.text, fontSize: 16 }}>💾</Text>
+            </TouchableOpacity>
+
+            <View style={{ position: 'relative', zIndex: 100 }}>
+              <TouchableOpacity onPress={handleOpenLoadMenu} style={[styles.tabActionBtn, { borderColor: activeTheme.border }]}>
+                <Text style={{ color: activeTheme.text, fontSize: 16 }}>📂</Text>
+              </TouchableOpacity>
+              {renderLoadMenu(false)}
+            </View>
+          </>
+        )}
+        <TouchableOpacity onPress={handleAddTab} style={[styles.tabActionBtn, { borderColor: activeTheme.border }]}>
+          <Text style={{ color: activeTheme.subText, fontSize: 16, fontWeight: '300' }}>+</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
   const renderMobileFileActions = () => (
     <View style={[styles.mobileFileActionsBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
-      
-      {isLoggedIn && (
-        <>
-          <TouchableOpacity onPress={handleSave} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
-            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: activeTheme.text, fontSize: 16 }}>💾</Text>
-            </View>
-            <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Save</Text>
-          </TouchableOpacity>
-          
-          <View style={{ flex: 1, position: 'relative', zIndex: 100 }}>
-            <TouchableOpacity onPress={handleOpenLoadMenu} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border, borderLeftWidth: 0 }]}>
-              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: activeTheme.text, fontSize: 16 }}>📂</Text>
-              </View>
-              <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Load</Text>
-            </TouchableOpacity>
-            {renderLoadMenu(false)}
-          </View>
-        </>
-      )}
-
       <TouchableOpacity onPress={handleUpload} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16, transform: [{ translateY: 2 }] }}>↑</Text>
@@ -656,7 +683,7 @@ export default function IdeScreen() {
         </View>
         <Text style={[styles.mobileFileActionLabel, { color: activeTheme.subText }]}>Upload</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={handleDownload} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border }]}>
+      <TouchableOpacity onPress={handleDownload} style={[styles.mobileFileActionBtn, { borderColor: activeTheme.border, borderLeftWidth: 0 }]}>
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: activeTheme.text, fontWeight: '700', fontSize: 16, lineHeight: 16, transform: [{ translateY: 2 }] }}>↓</Text>
           <View style={{ width: 14, height: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: activeTheme.text, marginTop: 2 }} />
@@ -866,10 +893,8 @@ export default function IdeScreen() {
                 <Text style={{ color: activeTheme.text }}>Docs</Text>
               </TouchableOpacity>
               {isLoggedIn ? (
-                <TouchableOpacity style={[styles.menuItem, { alignItems: 'center' }]} onPress={() => { handleLogout(); setMenuOpen(false); }}>
-                  <View style={[styles.primaryButton, { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }]}>
-                    <LogoutSymbol color="#ffffff" />
-                  </View>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { handleLogout(); setMenuOpen(false); }}>
+                  <Text style={{ color: activeTheme.text }}>Logout</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={styles.menuItem} onPress={() => { router.push('/login'); setMenuOpen(false); }}>
@@ -1005,7 +1030,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   loadDropdownMobile: {
-    left: 0,
+    right: 0,
     width: 180,
     marginTop: 4,
   },

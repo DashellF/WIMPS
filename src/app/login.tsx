@@ -18,9 +18,8 @@ import {
 } from 'react-native';
 import { THEMES } from '../theme/themes';
 
-const API_BASE_URL = Platform.OS === 'web' 
-  ? 'http://localhost:3001' 
-  : process.env.EXPO_PUBLIC_API_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+
 
 interface ThemeSwitchProps {
   isDark: boolean;

@@ -4,8 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
-  LayoutAnimation,
-  Platform, // Added Platform import here
+  LayoutAnimation, // Added Platform import here
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -18,9 +17,8 @@ import {
 import Cookies from 'js-cookie';
 import { THEMES } from '../theme/themes';
 
-const API_BASE_URL = Platform.OS === 'web' 
-  ? 'http://localhost:3001' 
-  : process.env.EXPO_PUBLIC_API_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+
 
 // --- Animated Switch Component ---
 interface ThemeSwitchProps {
