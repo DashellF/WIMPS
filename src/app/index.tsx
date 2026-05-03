@@ -104,6 +104,9 @@ export default function IdeScreen() {
   // --- State ---
   const [tabs, setTabs] = useState<CodeTab[]>(DEFAULT_TABS);
   const [activeTabId, setActiveTabId] = useState<string>('1');
+
+  const [activeLine, setActiveLine] = useState<number | null>(null);
+
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editTabName, setEditTabName] = useState<string>('');
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
@@ -510,7 +513,11 @@ export default function IdeScreen() {
     { label: 'Assemble', icon: require('../../assets/images/assemble_icon.png'), onPress: () => {
         const r = assemble(activeCode);
         if (!r.ok) setOutput(`Assembly error:\n${r.error}`);
-        else { refreshUI(getState()); setOutput('Assembled successfully.'); }
+        else {
+          setActiveLine(null);
+          refreshUI(getState());
+          setOutput('Assembled successfully.');
+        }
     }},
     { label: 'Run', icon: require('../../assets/images/run_icon.png'), onPress: () => {
         const state = runSim();
@@ -529,12 +536,19 @@ export default function IdeScreen() {
         } else {
           refreshUI(state);
           if (state && state.pc !== undefined) {
-             setOutput(`PC: 0x${state.pc.toString(16).padStart(8, '0')}\n` + (state.output || ''));
+            const line = state.lineNumber ?? null;
+            setActiveLine(line);
+
+            setOutput(
+              `PC: 0x${state.pc.toString(16).padStart(8, '0')}\n` +
+              (state.output || '')
+            );
           }
         }
     }},
     { label: 'Reset', icon: require('../../assets/images/reset_icon.png'), onPress: () => {
         resetSim(); 
+        setActiveLine(null);
         setRegisters(buildInitialRegisters()); 
         setOutput('Reset.');
         setIsWaiting(false);
@@ -808,7 +822,13 @@ export default function IdeScreen() {
                     ]}
                   >
                     {!minimized.editor && renderDesktopTabBar()}
-                    <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
+                    <CodeEditor
+                      code={activeCode}
+                      setCode={setCode}
+                      actions={editorActions}
+                      theme={activeTheme}
+                      activeLine={activeLine}
+                    />
                   </WindowWrapper>
 
                   {!minimized.editor && !minimized.console && (
@@ -870,7 +890,13 @@ export default function IdeScreen() {
                   <WindowWrapper title="Editor" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%', overflow: 'visible', zIndex: 100 }}>
                     {renderMobileFileActions()}
                     {renderTabBar()}
-                    <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
+                    <CodeEditor
+                      code={activeCode}
+                      setCode={setCode}
+                      actions={editorActions}
+                      theme={activeTheme}
+                      activeLine={activeLine}
+                    />
                   </WindowWrapper>
                 )}
                 {mobileView === 'console' && (

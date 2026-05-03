@@ -25,6 +25,7 @@ export type SimulatorState = {
   registers: { name: string; number: number; hexValue: string; decimalValue: string }[];
   output: string;
   pc: number;
+  lineNumber: number | null;
   isWaiting: boolean;
   terminated: boolean;
 };
@@ -38,6 +39,7 @@ const REGISTER_NAMES = [
 
 // --- Module-level state ---
 let source = '';
+let pcToLine = new Map<number, number>();
 let instance: JsMips = makeMipsfromSource('');
 
 /**
@@ -64,6 +66,42 @@ let outputBuffer = '';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function buildPcToLineMap(src: string) {
+  pcToLine = new Map<number, number>();
+
+  let pc = 0x00400000;
+  let inTextSection = true;
+
+  src.split('\n').forEach((rawLine, index) => {
+    const lineNumber = index + 1;
+
+    let line = rawLine.split('#')[0].trim();
+    if (!line) return;
+
+    if (line === '.data') {
+      inTextSection = false;
+      return;
+    }
+
+    if (line === '.text') {
+      inTextSection = true;
+      return;
+    }
+
+    if (!inTextSection) return;
+
+    line = line.replace(/^[A-Za-z_][\w]*:\s*/, '').trim();
+    if (!line) return;
+
+    pcToLine.set(pc, lineNumber);
+    pc += 4;
+  });
+}
+
+function getLineNumberForPc(pc: number): number | null {
+  return pcToLine.get(pc) ?? null;
+}
 
 function getRegisters(sim: JsMips) {
   return REGISTER_NAMES.map((name, i) => {
@@ -134,6 +172,7 @@ function registerHandlers(sim: JsMips) {
  * Re-create and re-initialize `instance` from the stored source.
  */
 function reinitialize(): boolean {
+  buildPcToLineMap(source);
   instance = makeMipsfromSource(source);
   const result = instance.assemble();
   if (result.hasErrors) return false;
@@ -160,6 +199,7 @@ function runLoop(): SimulatorState {
 
 export function assemble(src: string) {
   source = src;
+  buildPcToLineMap(source);
   outputBuffer = '';
   allInputs = [];
   inputCursor = 0;
@@ -175,13 +215,16 @@ export function assemble(src: string) {
 }
 
 export function getState(): SimulatorState {
-  return {
-    registers: getRegisters(instance),
-    output: outputBuffer,
-    pc: instance.programCounter,
-    isWaiting: isBlockedForInput,
-    terminated: instance.terminated,
-  };
+  const pc = instance.programCounter;
+
+return {
+  registers: getRegisters(instance),
+  output: outputBuffer,
+  pc,
+  lineNumber: getLineNumberForPc(pc),
+  isWaiting: isBlockedForInput,
+  terminated: instance.terminated,
+};
 }
 
 export function runSim(): SimulatorState {
@@ -218,6 +261,7 @@ export function feedInput(rawInput: string): SimulatorState {
 
 export function resetSim() {
   source = '';
+  pcToLine = new Map<number, number>();
   outputBuffer = '';
   allInputs = [];
   inputCursor = 0;

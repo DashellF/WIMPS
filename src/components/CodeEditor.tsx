@@ -27,7 +27,7 @@ const getFallbackSyntax = (text: string) => ({
   text,
 });
 
-export function CodeEditor({ code, setCode, actions, theme }: any) {
+export function CodeEditor({ code, setCode, actions, theme, activeLine }: any) {
   const [showActionMenu, setShowActionMenu] = useState(false);
   const menuAnim = useRef(new Animated.Value(0)).current;
   const styles = getThemeStyles(theme);
@@ -130,15 +130,46 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
         >
           {/* Gutter (Line Numbers) */}
           <View style={styles.gutter}>
-            {Array.from({ length: lineCount }).map((_, i) => (
-              <Text key={i} style={styles.lineNumber}>
-                {i + 1}
-              </Text>
-            ))}
-          </View>
+  {Array.from({ length: lineCount }).map((_, i) => {
+    const lineNumber = i + 1;
+    const isActive = activeLine === lineNumber;
+
+    return (
+      <Text
+        key={i}
+        style={[
+          styles.lineNumber,
+          isActive && {
+            backgroundColor: '#2563eb55',
+            color: theme.text,
+            fontWeight: '700',
+          },
+        ]}
+      >
+        {lineNumber}
+      </Text>
+    );
+  })}
+</View>
 
           {/* Input Wrapper */}
           <View style={styles.editorInputWrapper}>
+            <View pointerEvents="none" style={styles.activeLineOverlay}>
+              {lines.map((_: string, i: number) => {
+                const lineNumber = i + 1;
+                const isActive = activeLine === lineNumber;
+
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.activeLineHighlight,
+                      isActive && { backgroundColor: '#2563eb33' },
+                    ]}
+                  />
+                );
+              })}
+            </View>
             {Platform.OS === 'web' ? (
               /* Highlighting Editor for Web Only */
               <Editor
@@ -263,6 +294,16 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     position: 'relative',
     minHeight: '100%',
   },
+  activeLineOverlay: {
+    position: 'absolute',
+    top: 16,
+    left: 0,
+    right: 0,
+    zIndex: 0,
+  },
+  activeLineHighlight: {
+    height: 22,
+  },
   webEditorStyle: {
     flex: 1,
     minHeight: '100%',
@@ -276,6 +317,7 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
   } as any,
   mobileInput: {
     flex: 1,
+    zIndex: 1,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     fontSize: 15,
     lineHeight: 22,
