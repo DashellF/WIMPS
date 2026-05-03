@@ -85,11 +85,24 @@ router.get('/tabs', authenticate, async(req, res) => {
 });
 
 // Save User Tabs
-router.post('/tabs', authenticate, async(req, res) => {
+javascriptrouter.post('/tabs', authenticate, async(req, res) => {
     try {
         const { tabs } = req.body;
         if (!Array.isArray(tabs)) {
             return res.status(400).json({ error: 'tabs must be an array' });
+        }
+
+        const MAX_TABS = 15;
+        if (tabs.length > MAX_TABS) {
+            return res.status(400).json({ error: `Cannot save more than ${MAX_TABS} tabs` });
+        }
+
+        const MAX_TAB_SIZE_BYTES = 1 * 1024 * 1024;
+        for (let i = 0; i < tabs.length; i++) {
+            const tabSize = Buffer.byteLength(JSON.stringify(tabs[i]), 'utf8');
+            if (tabSize > MAX_TAB_SIZE_BYTES) {
+                return res.status(413).json({ error: `Tab at index ${i} exceeds the 1MB size limit` });
+            }
         }
 
         const user = await User.findByIdAndUpdate(req.userId, { tabs }, { new: true });
@@ -103,5 +116,3 @@ router.post('/tabs', authenticate, async(req, res) => {
         res.status(500).json({ error: 'Server error saving tabs' });
     }
 });
-
-module.exports = router;

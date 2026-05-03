@@ -28,8 +28,8 @@ import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { WindowWrapper } from '../components/WindowWrapper';
-import { assemble, feedInput, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
 import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStorage';
+import { assemble, feedInput, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
 
 import { PageWrapper } from '@/components/PageWrapper';
 import type { Theme } from '../theme/themes';
@@ -200,6 +200,18 @@ export default function IdeScreen() {
     const tabsToSave = tabsRef.current;
     const cleanTabs = tabsToSave.map(t => ({ ...t, isDirty: false }));
     const token = await getAuthToken();
+
+    if (tabsRef.current.length > 15) {
+      setOutput('Save failed: maximum of 15 tabs allowed.');
+      return;
+    }
+
+    const MAX_TAB_SIZE = 1 * 1024 * 1024;
+    const oversized = tabsRef.current.find(t => Buffer.byteLength(JSON.stringify(t), 'utf8') > MAX_TAB_SIZE);
+    if (oversized) {
+      setOutput(`Save failed: "${oversized.name}" exceeds the 1MB size limit.`);
+      return;
+    }
 
     if (token) {
       try {
