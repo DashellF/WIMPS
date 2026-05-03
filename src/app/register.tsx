@@ -5,6 +5,7 @@ import {
   Animated,
   Image,
   LayoutAnimation,
+  Platform, // Added Platform import here
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -16,6 +17,10 @@ import {
 
 import Cookies from 'js-cookie';
 import { THEMES } from '../theme/themes';
+
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3001' 
+  : process.env.EXPO_PUBLIC_API_URL;
 
 // --- Animated Switch Component ---
 interface ThemeSwitchProps {
@@ -89,7 +94,7 @@ export default function RegisterScreen() {
     }
 
     try {
-      const res = await fetch('http://localhost:3001/auth/register', {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),

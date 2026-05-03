@@ -44,3 +44,6 @@ app-example
 
 #logincreds:(
 backend/.env
+
+#ngrok link
+.env

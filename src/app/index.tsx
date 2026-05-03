@@ -38,6 +38,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+
+const API_BASE_URL = Platform.OS === 'web' 
+  ? 'http://localhost:3001' 
+  : process.env.EXPO_PUBLIC_API_URL;
+
 // --- Helper Components ---
 interface ThemeSwitchProps {
   isDark: boolean;
@@ -163,7 +168,7 @@ export default function IdeScreen() {
       const token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
       if (token) {
         try {
-          const res = await fetch('http://localhost:3001/auth/tabs', {
+          const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ tabs: cleanTabs })
@@ -208,7 +213,7 @@ export default function IdeScreen() {
           if (!hasLoadedInitialTabs.current) {
             hasLoadedInitialTabs.current = true;
             try {
-              const res = await fetch('http://localhost:3001/auth/tabs', {
+              const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
               if (res.ok) {
@@ -256,7 +261,7 @@ export default function IdeScreen() {
     const token = Cookies.get('token') || (Platform.OS === 'web' ? localStorage.getItem('token') : null);
     if (token && isLoggedInRef.current) {
       try {
-        const res = await fetch('http://localhost:3001/auth/tabs', {
+        const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
@@ -568,9 +573,9 @@ export default function IdeScreen() {
 
   // --- Desktop Tab Bar ---
   const renderDesktopTabBar = () => (
-    <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border, zIndex: 100 }]}>
+    <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
       {renderTabScrollView()}
-      <View style={[styles.desktopTabActions, { zIndex: 100 }]}>
+      <View style={styles.desktopTabActions}>
         
         {isLoggedIn && (
           <>
@@ -621,7 +626,7 @@ export default function IdeScreen() {
   );
 
   const renderMobileFileActions = () => (
-    <View style={[styles.mobileFileActionsBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border, zIndex: 100 }]}>
+    <View style={[styles.mobileFileActionsBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
       
       {isLoggedIn && (
         <>
@@ -722,26 +727,6 @@ export default function IdeScreen() {
               )}
             </View>
           </View>
-
-          {/* MOBILE MENU */}
-          {menuOpen && !isWide && (
-            <View style={[styles.mobileMenu, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
-              <TouchableOpacity style={styles.menuItem} onPress={() => { router.push('/docs'); setMenuOpen(false); }}>
-                <Text style={{ color: activeTheme.text }}>Docs</Text>
-              </TouchableOpacity>
-              {isLoggedIn ? (
-                <TouchableOpacity style={[styles.menuItem, { alignItems: 'center' }]} onPress={() => { handleLogout(); setMenuOpen(false); }}>
-                  <View style={[styles.primaryButton, { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }]}>
-                    <LogoutSymbol color="#ffffff" />
-                  </View>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.menuItem} onPress={() => { router.push('/login'); setMenuOpen(false); }}>
-                  <Text style={{ color: activeTheme.text }}>Login</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
 
           {isWide ? (
             /* --- DESKTOP VIEW --- */
@@ -873,6 +858,27 @@ export default function IdeScreen() {
                 </View>
             </View>
           )}
+
+          {/* MOBILE MENU - Moved to bottom of the DOM for strict Android Z-Index ordering */}
+          {menuOpen && !isWide && (
+            <View style={[styles.mobileMenu, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { router.push('/docs'); setMenuOpen(false); }}>
+                <Text style={{ color: activeTheme.text }}>Docs</Text>
+              </TouchableOpacity>
+              {isLoggedIn ? (
+                <TouchableOpacity style={[styles.menuItem, { alignItems: 'center' }]} onPress={() => { handleLogout(); setMenuOpen(false); }}>
+                  <View style={[styles.primaryButton, { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }]}>
+                    <LogoutSymbol color="#ffffff" />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.menuItem} onPress={() => { router.push('/login'); setMenuOpen(false); }}>
+                  <Text style={{ color: activeTheme.text }}>Login</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
         </View>
       </SafeAreaView>
     </PageWrapper>
@@ -909,8 +915,21 @@ const styles = StyleSheet.create({
   mobileTabBar: { flexDirection: 'row', height: 60, borderTopWidth: 1 },
   mobileTabButton: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   menuIcon: { padding: 4 },
-  mobileMenu: { position: 'absolute', top: 60, right: 16, width: 140, borderRadius: 10, borderWidth: 1, zIndex: 100, padding: 8 },
+  
+  // Elevated mobile menu
+  mobileMenu: { 
+    position: 'absolute', 
+    top: 60, 
+    right: 16, 
+    width: 140, 
+    borderRadius: 10, 
+    borderWidth: 1, 
+    zIndex: 1000, 
+    elevation: 100, // Explicitly float over children
+    padding: 8 
+  },
   menuItem: { padding: 12 },
+  
   editorTabBar: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'center', zIndex: 100 },
   editorTab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2 },
   tabCloseBtn: { paddingHorizontal: 4, paddingVertical: 2, marginLeft: 2 },
@@ -966,13 +985,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  // Elevated load dropdowns
   loadDropdownMenu: {
     position: 'absolute',
     top: '100%',
     borderWidth: 1,
     borderRadius: 8,
     zIndex: 9999, 
-    elevation: 9999,
+    elevation: 100, // Explicitly float over children
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
