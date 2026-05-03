@@ -27,7 +27,16 @@ import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { WindowWrapper } from '../components/WindowWrapper';
-import { assemble, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
+
+import {
+  assemble,
+  feedInput,
+  getMemoryRange,
+  getState,
+  resetSim,
+  runSim,
+  stepSim
+} from '../simulator/useMips';
 
 import { PageWrapper } from '@/components/PageWrapper';
 import type { Theme } from '../theme/themes';
@@ -109,7 +118,9 @@ export default function IdeScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showHex, setShowHex] = useState(true);
 
-  // Layout Percentages (Desktop Only)
+  const [consoleInput, setConsoleInput] = useState('');
+  const [isWaiting, setIsWaiting] = useState(false);
+
   const [leftPanelPct, setLeftPanelPct] = useState(70);
   const [editorHeightPct, setEditorHeightPct] = useState(65);
   const [sideHeightPct, setSideHeightPct] = useState(50);
@@ -127,18 +138,46 @@ export default function IdeScreen() {
   const editorColumnLayout = useRef({ y: 0, height: 0 });
   const sideColumnRef = useRef<View>(null);
   const sideColumnLayout = useRef({ y: 0, height: 0 });
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  // --- PERSISTENCE LOGIC ---
+  useEffect(() => {
+    const savedTabs = localStorage.getItem('mips_tabs');
+    const savedActiveId = localStorage.getItem('mips_active_tab');
+    if (savedTabs) {
+      try {
+        const parsed = JSON.parse(savedTabs);
+        if (parsed.length > 0) setTabs(parsed);
+      } catch (e) { console.error("Load tabs error", e); }
+    }
+    if (savedActiveId) setActiveTabId(savedActiveId);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('mips_tabs', JSON.stringify(tabs));
+  }, [tabs]);
+
+  useEffect(() => {
+    localStorage.setItem('mips_active_tab', activeTabId);
+  }, [activeTabId]);
 
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code || '', [tabs, activeTabId]);
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
-  // --- Logic ---
+  const refreshUI = (state: any) => {
+    setRegisters(state.registers);
+    setOutput(state.output);
+    setIsWaiting(state.isWaiting);
+    setMemoryData(getMemoryRange(0x10010000, 20));
+  };
+
   const setCode = (newCode: string) => setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code: newCode } : t));
+  
   const toggleWindow = (key: keyof typeof minimized) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMinimized(prev => ({ ...prev, [key]: !prev[key] }));
   };
+
   const toggleTheme = () => {
     setIsDarkMode(prev => {
       const next = !prev;
@@ -146,7 +185,6 @@ export default function IdeScreen() {
       return next;
     });
   };
-  const updateMemory = () => setMemoryData(getMemoryRange(0x10010000, 20));
 
   const handleTabPress = (tabId: string) => {
     const now = Date.now();
@@ -159,7 +197,40 @@ export default function IdeScreen() {
     }
   };
 
-  // --- File Tab Actions ---
+  const handleSendInput = () => {
+    if (!consoleInput.trim()) return;
+    const input = consoleInput;
+    setConsoleInput('');
+    // feedInput replays the whole program with all inputs pre-loaded,
+    // so its return value already contains the correct final state.
+    // Do NOT call runSim() again after this.
+    const state = feedInput(input);
+    refreshUI(state);
+  };
+
+  const editorActions = useMemo(() => [
+    { label: 'Assemble', icon: require('../../assets/images/assemble_icon.png'), onPress: () => {
+        const r = assemble(activeCode);
+        if (!r.ok) setOutput(`Assembly error:\n${r.error}`);
+        else { refreshUI(getState()); setOutput('Assembled successfully.'); }
+    }},
+    { label: 'Run', icon: require('../../assets/images/run_icon.png'), onPress: () => {
+        const state = runSim();
+        refreshUI(state);
+    }},
+    { label: 'Step', icon: require('../../assets/images/step_icon.png'), onPress: () => {
+        const state = stepSim();
+        refreshUI(state);
+    }},
+    { label: 'Reset', icon: require('../../assets/images/reset_icon.png'), onPress: () => {
+        resetSim(); 
+        setRegisters(buildInitialRegisters()); 
+        setOutput('Reset.'); 
+        setIsWaiting(false);
+        setMemoryData([]);
+    }},
+  ], [activeCode, consoleInput]);
+
   const handleAddTab = () => {
     const newId = String(Date.now());
     const newName = `file${tabs.length + 1}.asm`;
@@ -168,12 +239,11 @@ export default function IdeScreen() {
   };
 
   const handleCloseTab = (tabId: string) => {
-    if (tabs.length === 1) return; // Don't close the last tab
+    if (tabs.length === 1) return;
     const idx = tabs.findIndex(t => t.id === tabId);
     const newTabs = tabs.filter(t => t.id !== tabId);
     setTabs(newTabs);
     if (activeTabId === tabId) {
-      // Switch to adjacent tab
       const nextTab = newTabs[Math.min(idx, newTabs.length - 1)];
       setActiveTabId(nextTab.id);
     }
@@ -182,9 +252,7 @@ export default function IdeScreen() {
   const handleDownload = async () => {
     const activeTab = tabs.find(t => t.id === activeTabId);
     if (!activeTab) return;
-
     if (Platform.OS === 'web') {
-      // Web: trigger browser download
       const blob = new Blob([activeTab.code], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -193,22 +261,12 @@ export default function IdeScreen() {
       a.click();
       URL.revokeObjectURL(url);
     } else {
-      // iOS / Android: write to cache then open native share sheet
       try {
         const fileUri = FileSystem.cacheDirectory + activeTab.name;
-        await FileSystem.writeAsStringAsync(fileUri, activeTab.code, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        await FileSystem.writeAsStringAsync(fileUri, activeTab.code, { encoding: FileSystem.EncodingType.UTF8 });
         const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'text/plain',
-            dialogTitle: `Save ${activeTab.name}`,
-          });
-        }
-      } catch (err) {
-        console.error('Download failed:', err);
-      }
+        if (canShare) await Sharing.shareAsync(fileUri, { mimeType: 'text/plain', dialogTitle: `Save ${activeTab.name}` });
+      } catch (err) { console.error('Download failed:', err); }
     }
   };
 
@@ -232,21 +290,14 @@ export default function IdeScreen() {
       input.click();
     } else {
       try {
-        const result = await DocumentPicker.getDocumentAsync({
-          type: '*/*',
-          copyToCacheDirectory: true,
-        });
+        const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
         if (result.canceled || !result.assets?.length) return;
         const asset = result.assets[0];
-        const text = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        const text = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
         const newId = String(Date.now());
         setTabs(prev => [...prev, { id: newId, name: asset.name ?? 'uploaded.asm', code: text }]);
         setActiveTabId(newId);
-      } catch (err) {
-        console.error('Upload failed:', err);
-      }
+      } catch (err) { console.error('Upload failed:', err); }
     }
   };
 
@@ -257,28 +308,6 @@ export default function IdeScreen() {
     setEditingTabId(null);
   };
 
-  const editorActions = useMemo(() => [
-    { label: 'Assemble', icon: require('../../assets/images/assemble_icon.png'), onPress: () => {
-        const r = assemble(activeCode);
-        if (!r.ok) setOutput(`Assembly error:\n${r.error}`);
-        else { setRegisters(getState()?.registers || []); updateMemory(); setOutput('Assembled successfully.'); }
-    }},
-    { label: 'Run', icon: require('../../assets/images/run_icon.png'), onPress: () => {
-        const r = runSim();
-        if ('error' in r) setOutput(`Runtime error:\n${r.error}`);
-        else { setRegisters(r.registers); updateMemory(); setOutput(r.output || 'Program finished.'); }
-    }},
-    { label: 'Step', icon: require('../../assets/images/step_icon.png'), onPress: () => {
-        const r = stepSim();
-        if ('error' in r) setOutput(`Step error:\n${r.error}`);
-        else { setRegisters(r.registers); updateMemory(); setOutput(`PC: 0x${r.pc.toString(16).padStart(8, '0')}\n` + r.output); }
-    }},
-    { label: 'Reset', icon: require('../../assets/images/reset_icon.png'), onPress: () => {
-        resetSim(); setRegisters(buildInitialRegisters()); setOutput('Reset.');
-    }},
-  ], [activeCode]);
-
-  // --- Desktop Resizer Handlers ---
   const panResponderHorizontal = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderGrant: () => setIsResizing(true),
@@ -317,7 +346,6 @@ export default function IdeScreen() {
     onPanResponderRelease: () => setIsResizing(false),
   }), []);
 
-  // --- Shared Tab ScrollView (tabs only, no action buttons) ---
   const renderTabScrollView = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
       {tabs.map((tab) => (
@@ -352,11 +380,9 @@ export default function IdeScreen() {
     </ScrollView>
   );
 
-  // --- Desktop Tab Bar (tabs left, actions right-aligned) ---
   const renderDesktopTabBar = () => (
     <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
       {renderTabScrollView()}
-      {/* Right-aligned actions: Upload, Download, New File */}
       <View style={styles.desktopTabActions}>
         <TouchableOpacity onPress={handleUpload} style={[styles.desktopFileBtn, { borderColor: activeTheme.border }]}>
           <View style={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -377,7 +403,6 @@ export default function IdeScreen() {
     </View>
   );
 
-  // --- Mobile Tab Bar (tabs + + button) ---
   const renderTabBar = () => (
     <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
       {renderTabScrollView()}
@@ -411,18 +436,14 @@ export default function IdeScreen() {
       <SafeAreaView style={[tStyles.safeArea, isResizing && styles.noSelect]}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>
-
-          {/* TOP BAR */}
           <View style={styles.topBar}>
             <Image source={isDarkMode ? require('../../assets/images/WIMPS_dark.png') : require('../../assets/images/WIMPS_light.png')} style={styles.logo} />
-            
             {isWide && (
               <View style={styles.minimizedTray}>
                 {minimized.editor && minimized.console && <DesktopMinimizedTab label="Editor & Console" isDarkMode={isDarkMode} onPress={() => setMinimized(p => ({ ...p, editor: false, console: false }))} />}
                 {minimized.registers && minimized.memory && <DesktopMinimizedTab label="Registers & Memory" isDarkMode={isDarkMode} onPress={() => setMinimized(p => ({ ...p, registers: false, memory: false }))} />}
               </View>
             )}
-
             <View style={styles.topBarActions}>
               <View style={{ marginRight: isWide ? 0 : 8 }}>
                 <ThemeSwitch isDark={isDarkMode} toggle={toggleTheme} />
@@ -440,7 +461,6 @@ export default function IdeScreen() {
             </View>
           </View>
 
-          {/* MOBILE MENU */}
           {menuOpen && !isWide && (
             <View style={[styles.mobileMenu, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
               <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/docs')}><Text style={{ color: activeTheme.text }}>Docs</Text></TouchableOpacity>
@@ -449,7 +469,6 @@ export default function IdeScreen() {
           )}
 
           {isWide ? (
-            /* --- DESKTOP VIEW --- */
             <View style={styles.desktopContent}>
               {(!minimized.editor || !minimized.console) && (
                 <View ref={editorColumnRef} style={[styles.editorColumn, { width: (minimized.registers && minimized.memory) ? '100%' : `${leftPanelPct}%` }]}>
@@ -463,11 +482,9 @@ export default function IdeScreen() {
                     {!minimized.editor && renderDesktopTabBar()}
                     <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
-
                   {!minimized.editor && !minimized.console && (
                     <View {...panResponderVertical.panHandlers} style={styles.resizerHorizontal}><View style={tStyles.resizerHorizontalLine} /></View>
                   )}
-
                   <WindowWrapper 
                     title="Console Output" 
                     theme={activeTheme} 
@@ -475,15 +492,31 @@ export default function IdeScreen() {
                     onToggleMinimize={() => toggleWindow('console')} 
                     style={!minimized.console ? { height: minimized.editor ? '100%' : `${100 - editorHeightPct}%` } : { height: 40 }}
                   >
-                    <View style={[tStyles.consoleCard, { flex: 1 }]}><ScrollView><Text style={tStyles.consoleText}>{output}</Text></ScrollView></View>
+                    <View style={{ flex: 1, backgroundColor: activeTheme.card }}>
+                      <ScrollView style={{ flex: 1, padding: 14 }}>
+                        <Text style={tStyles.consoleText}>{output}</Text>
+                        {isWaiting && <Text style={{ color: '#2563eb', fontWeight: 'bold', marginTop: 8 }}>[WAITING FOR INPUT...]</Text>}
+                      </ScrollView>
+                      <View style={[styles.consoleInputBar, { borderColor: activeTheme.border }]}>
+                        <Text style={{ color: activeTheme.subText, fontFamily: 'monospace', marginRight: 4 }}>$</Text>
+                        <TextInput
+                          style={{ flex: 1, color: activeTheme.text, fontFamily: 'monospace' }}
+                          value={consoleInput}
+                          onChangeText={setConsoleInput}
+                          placeholder="Type input here..."
+                          placeholderTextColor={activeTheme.subText}
+                          onSubmitEditing={handleSendInput}
+                          blurOnSubmit={false}
+                        />
+                        <TouchableOpacity onPress={handleSendInput}><Text style={{ color: '#2563eb', fontWeight: '700', marginLeft: 8 }}>SEND</Text></TouchableOpacity>
+                      </View>
+                    </View>
                   </WindowWrapper>
                 </View>
               )}
-
               {(!minimized.editor || !minimized.console) && (!minimized.registers || !minimized.memory) && (
                 <View {...panResponderHorizontal.panHandlers} style={styles.resizerVertical}><View style={tStyles.resizerVerticalLine} /></View>
               )}
-
               {(!minimized.registers || !minimized.memory) && (
                 <View ref={sideColumnRef} style={[styles.sideColumn, { width: (minimized.editor && minimized.console) ? '100%' : `${100 - leftPanelPct}%` }]}>
                   <WindowWrapper title="Registers" theme={activeTheme} isMinimized={minimized.registers} onToggleMinimize={() => toggleWindow('registers')} style={!minimized.registers ? { height: minimized.memory ? 'calc(100% - 24px)' : `${sideHeightPct}%` } : { height: 40 }}>
@@ -499,21 +532,36 @@ export default function IdeScreen() {
               )}
             </View>
           ) : (
-            /* --- MOBILE VIEW --- */
             <View style={styles.mobileContent}>
               <View style={styles.mobileMainArea}>
                 {mobileView === 'editor' && (
                   <WindowWrapper title="Editor" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%' }}>
-                    {/* Mobile File Actions Bar */}
                     {renderMobileFileActions()}
-                    {/* Mobile Tab Bar */}
                     {renderTabBar()}
                     <CodeEditor code={activeCode} setCode={setCode} actions={editorActions} theme={activeTheme} />
                   </WindowWrapper>
                 )}
                 {mobileView === 'console' && (
                   <WindowWrapper title="Console" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%' }}>
-                    <View style={[tStyles.consoleCard, { flex: 1 }]}><ScrollView><Text style={tStyles.consoleText}>{output}</Text></ScrollView></View>
+                    <View style={{ flex: 1, backgroundColor: activeTheme.card }}>
+                      <ScrollView style={{ flex: 1, padding: 14 }}>
+                        <Text style={tStyles.consoleText}>{output}</Text>
+                        {isWaiting && <Text style={{ color: '#2563eb', fontWeight: 'bold', marginTop: 8 }}>[WAITING FOR INPUT...]</Text>}
+                      </ScrollView>
+                      <View style={[styles.consoleInputBar, { borderColor: activeTheme.border }]}>
+                        <Text style={{ color: activeTheme.subText, fontFamily: 'monospace', marginRight: 4 }}>$</Text>
+                        <TextInput
+                          style={{ flex: 1, color: activeTheme.text, fontFamily: 'monospace' }}
+                          value={consoleInput}
+                          onChangeText={setConsoleInput}
+                          placeholder="Type input here..."
+                          placeholderTextColor={activeTheme.subText}
+                          onSubmitEditing={handleSendInput}
+                          blurOnSubmit={false}
+                        />
+                        <TouchableOpacity onPress={handleSendInput}><Text style={{ color: '#2563eb', fontWeight: '700', marginLeft: 8 }}>SEND</Text></TouchableOpacity>
+                      </View>
+                    </View>
                   </WindowWrapper>
                 )}
                 {mobileView === 'registers' && (
@@ -528,18 +576,12 @@ export default function IdeScreen() {
                 )}
               </View>
               <View style={[styles.mobileTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
-                  {(['editor', 'console', 'registers', 'memory'] as const).map((view) => (
-                    <TouchableOpacity 
-                      key={view} 
-                      onPress={() => setMobileView(view)} 
-                      style={[styles.mobileTabButton, mobileView === view && { borderTopWidth: 3, borderTopColor: '#2563eb' }]}
-                    >
-                      <Text style={{ color: mobileView === view ? '#2563eb' : activeTheme.subText, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>
-                        {view}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {(['editor', 'console', 'registers', 'memory'] as const).map((view) => (
+                  <TouchableOpacity key={view} onPress={() => setMobileView(view)} style={[styles.mobileTabButton, mobileView === view && { borderTopWidth: 3, borderTopColor: '#2563eb' }]}>
+                    <Text style={{ color: mobileView === view ? '#2563eb' : activeTheme.subText, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>{view}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           )}
         </View>
@@ -588,47 +630,11 @@ const styles = StyleSheet.create({
   switchTrack: { width: 58, height: 32, borderRadius: 16, borderWidth: 2, justifyContent: 'center' },
   switchThumb: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   switchIcon: { fontSize: 12, fontWeight: 'bold' },
-  // Desktop tab row action group (right-aligned)
-  desktopTabActions: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    marginLeft: 'auto' as any,
-  },
-  desktopFileBtn: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 11,
-    paddingVertical: 4,
-    borderLeftWidth: 1,
-    gap: 0,
-  },
-  desktopFileBtnLast: {
-    paddingHorizontal: 13,
-  },
-  // Mobile file actions bar
-  mobileFileActionsBar: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    gap: 4,
-  },
-  mobileFileActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  mobileFileActionIcon: {
-    fontSize: 13,
-  },
-  mobileFileActionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
+  desktopTabActions: { flexDirection: 'row', alignItems: 'stretch', marginLeft: 'auto' as any },
+  desktopFileBtn: { flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 11, paddingVertical: 4, borderLeftWidth: 1, gap: 0 },
+  desktopFileBtnLast: { paddingHorizontal: 13 },
+  mobileFileActionsBar: { flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 4, paddingVertical: 4, gap: 4 },
+  mobileFileActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  mobileFileActionLabel: { fontSize: 11, fontWeight: '600' },
+  consoleInputBar: { flexDirection: 'row', alignItems: 'center', padding: 10, borderTopWidth: 1, backgroundColor: 'rgba(0,0,0,0.03)' },
 });
