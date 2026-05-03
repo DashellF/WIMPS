@@ -116,3 +116,5 @@ router.post('/tabs', authenticate, async(req, res) => {
         res.status(500).json({ error: 'Server error saving tabs' });
     }
 });
+
+module.exports = router;
