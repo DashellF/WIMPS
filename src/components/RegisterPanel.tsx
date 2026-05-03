@@ -132,16 +132,15 @@ const getThemeStyles = (theme: Theme) =>
     tableHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingRight: 14,
-      paddingBottom: 4,
-      gap: 8,
+      paddingLeft: 10,
+      paddingRight: 28,
+      paddingBottom: 6,
     },
     headerCell: {
       color: theme.subText,
       fontSize: 10,
       fontWeight: '700',
       textTransform: 'uppercase',
-      paddingLeft: 8
     },
     headerSearch: {
       backgroundColor: theme.card,
@@ -164,7 +163,7 @@ const getThemeStyles = (theme: Theme) =>
       flex: 1,
     },
     listContent: {
-      paddingHorizontal: 4,
+      paddingHorizontal: 0,
     },
     row: {
       flexDirection: 'row',
@@ -181,7 +180,8 @@ const getThemeStyles = (theme: Theme) =>
       flex: 1.2,
     },
     numColumn: {
-      width: 30
+      width: 30,
+      textAlign: 'center',
     },
     valueColumn: {
       flex: 1.4,
