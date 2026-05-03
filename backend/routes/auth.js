@@ -85,7 +85,7 @@ router.get('/tabs', authenticate, async(req, res) => {
 });
 
 // Save User Tabs
-javascriptrouter.post('/tabs', authenticate, async(req, res) => {
+router.post('/tabs', authenticate, async(req, res) => {
     try {
         const { tabs } = req.body;
         if (!Array.isArray(tabs)) {
