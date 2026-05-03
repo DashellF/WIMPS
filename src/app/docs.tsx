@@ -15,6 +15,7 @@ import {
 
 import { PageWrapper } from '@/components/PageWrapper';
 import Cookies from 'js-cookie';
+import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
 import type { Theme } from '../theme/themes';
 import { THEMES } from '../theme/themes';
 
@@ -45,6 +46,18 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
     </TouchableOpacity>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Logout symbol (from IdeScreen)
+// ---------------------------------------------------------------------------
+const LogoutSymbol = ({ color = '#ffffff' }: { color?: string }) => (
+  <View style={{ width: 24, height: 18, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{ position: 'absolute', right: 4, width: 12, height: 18, borderTopWidth: 2, borderRightWidth: 2, borderBottomWidth: 2, borderColor: color }} />
+    <View style={{ position: 'absolute', right: 16, top: 0, width: 2, height: 5, backgroundColor: color }} />
+    <View style={{ position: 'absolute', right: 16, bottom: 0, width: 2, height: 5, backgroundColor: color }} />
+    <Text style={{ position: 'absolute', right: 8, transform: [{ translateY: -2 }], color: color, fontWeight: '700', fontSize: 16, lineHeight: 18 }}>←</Text>
+  </View>
+);
 
 // ---------------------------------------------------------------------------
 // Accordion
@@ -357,6 +370,7 @@ const DIRECTIVES: [string, string][] = [
 export default function DocsScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [search, setSearch] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
@@ -371,6 +385,20 @@ export default function DocsScreen() {
     const saved = Cookies.get('theme');
     if (saved) setIsDarkMode(saved === 'dark');
   }, []);
+
+  // --- Auth detection (mirrors IdeScreen) ---
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = await getAuthToken();
+      setIsLoggedIn(!!token);
+    };
+    checkAuth();
+  }, []);
+
+  const handleLogout = async () => {
+    await clearAuthToken();
+    setIsLoggedIn(false);
+  };
 
   const q = search.trim().toLowerCase();
 
@@ -408,9 +436,18 @@ export default function DocsScreen() {
               <TouchableOpacity style={tStyles.secondaryButton} onPress={() => router.push('/')}>
                 <Text style={tStyles.secondaryButtonText}>IDE</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/login')}>
-                <Text style={styles.primaryButtonText}>Login</Text>
-              </TouchableOpacity>
+              {isLoggedIn ? (
+                <TouchableOpacity
+                  style={[styles.primaryButton, { paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center', alignItems: 'center' }]}
+                  onPress={handleLogout}
+                >
+                  <LogoutSymbol color="#ffffff" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/login')}>
+                  <Text style={styles.primaryButtonText}>Login</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
