@@ -151,6 +151,10 @@ export default function IdeScreen() {
     }
     if (savedActiveId) setActiveTabId(savedActiveId);
   }, []);
+  useEffect(() => {
+    const savedTheme = Cookies.get('theme');
+    if (savedTheme) setIsDarkMode(savedTheme === 'dark');
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('mips_tabs', JSON.stringify(tabs));
@@ -508,7 +512,6 @@ export default function IdeScreen() {
                           onSubmitEditing={handleSendInput}
                           blurOnSubmit={false}
                         />
-                        <TouchableOpacity onPress={handleSendInput}><Text style={{ color: '#2563eb', fontWeight: '700', marginLeft: 8 }}>SEND</Text></TouchableOpacity>
                       </View>
                     </View>
                   </WindowWrapper>
