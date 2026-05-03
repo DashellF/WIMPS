@@ -1,5 +1,16 @@
 import { StatusBarStyle } from 'react-native';
 
+export type SyntaxColors = {
+  instruction: string;
+  register: string;
+  directive: string;
+  comment: string;
+  number: string;
+  label: string;
+  string: string;
+  text: string;
+};
+
 export type Theme = {
   bg: string;
   text: string;
@@ -12,6 +23,8 @@ export type Theme = {
   consoleText: string;
   btnBg: string;
   statusBarStyle: StatusBarStyle;
+
+  syntax: SyntaxColors;
 };
 
 export const THEMES: Record<'dark' | 'light', Theme> = {
@@ -27,6 +40,16 @@ export const THEMES: Record<'dark' | 'light', Theme> = {
     consoleText: '#cbd5e1',
     btnBg: '#111827',
     statusBarStyle: 'light-content',
+      syntax: {
+    instruction: '#60a5fa',
+    register: '#fb923c',
+    directive: '#f472b6',
+    comment: '#4ade80',
+    number: '#f8fafc',
+    label: '#f8fafc',
+    string: '#f8fafc',
+    text: '#f8fafc',
+  },
   },
   light: {
     bg: '#f1f5f9',
@@ -40,5 +63,15 @@ export const THEMES: Record<'dark' | 'light', Theme> = {
     consoleText: '#334155',
     btnBg: '#ffffff',
     statusBarStyle: 'dark-content',
+      syntax: {
+    instruction: '#2563eb',
+    register: '#f97316',
+    directive: '#ec4899',
+    comment: '#16a34a',
+    number: '#0f172a',
+    label: '#0f172a',
+    string: '#0f172a',
+    text: '#0f172a',
+  },
   },
 };

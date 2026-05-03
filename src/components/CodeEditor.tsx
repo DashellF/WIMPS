@@ -1,11 +1,24 @@
+import { highlightMipsCode } from '@/helpers/mipsSyntax';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Editor from 'react-simple-code-editor';
 import type { Theme } from '../theme/themes';
 
 const TAB = '    ';
 
+const getFallbackSyntax = (text: string) => ({
+  instruction: text,
+  register: text,
+  directive: text,
+  comment: text,
+  number: text,
+  label: text,
+  string: text,
+  text,
+});
+
 export function CodeEditor({ code, setCode, actions, theme }: any) {
-  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  
   const [showActionMenu, setShowActionMenu] = useState(false);
   const menuAnim = useRef(new Animated.Value(0)).current;
   const styles = getThemeStyles(theme);
@@ -22,48 +35,27 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
   }, [showActionMenu]);
 
   const handleKeyPress = (e: any) => {
-    const { start, end } = selection;
+  if (Platform.OS !== 'web') return;
 
-    if (Platform.OS === 'web' && e.nativeEvent.key === 'Tab') {
-      e.preventDefault();
-      const newText = code.slice(0, start) + TAB + code.slice(end);
-      setCode(newText);
-      const next = start + TAB.length;
-      setSelection({ start: next, end: next });
-    }
+  const target = e.currentTarget as HTMLTextAreaElement;
+  const start = target.selectionStart;
+  const end = target.selectionEnd;
 
-    // 2. Handle Ctrl + Backspace
-    if (
-      Platform.OS === 'web' &&
-      e.nativeEvent.key === 'Backspace' &&
-      (e.nativeEvent.ctrlKey || e.nativeEvent.metaKey)
-    ) {
-      if (start !== end) return; 
+  if (e.key === 'Tab') {
+    e.preventDefault();
 
-      const textBeforeCursor = code.slice(0, start);
-      const lastNewlineIndex = textBeforeCursor.lastIndexOf('\n');
-      const currentLineBeforeCursor = textBeforeCursor.slice(lastNewlineIndex + 1);
+    const newText = code.slice(0, start) + TAB + code.slice(end);
+    setCode(newText);
 
-      if (currentLineBeforeCursor.length > 0) {
-        // CASE A: Content exists on this line, delete the "chunk"
-        e.preventDefault();
-        const match = currentLineBeforeCursor.match(/(\s+||[^\s\w]+||\w+)$/);
-        const deleteCount = match ? match[0].length : 0;
-        const newText = code.slice(0, start - deleteCount) + code.slice(end);
-        setCode(newText);
-        const next = start - deleteCount;
-        setSelection({ start: next, end: next });
-      } else if (start > 0) {
-        // CASE B: Line is empty, delete the newline and move up
-        e.preventDefault();
-        // Slice out the single \n character at the cursor position
-        const newText = code.slice(0, start - 1) + code.slice(end);
-        setCode(newText);
-        const next = start - 1; 
-        setSelection({ start: next, end: next });
-      }
-    }
-  };
+    requestAnimationFrame(() => {
+      target.selectionStart = start + TAB.length;
+      target.selectionEnd = start + TAB.length;
+    });
+  }
+};
+  
+
+
 
   return (
   <View style={styles.wrapper}>
@@ -126,34 +118,51 @@ export function CodeEditor({ code, setCode, actions, theme }: any) {
     </View>
 
     <View style={styles.editorShell}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        bounces={false}
-        showsVerticalScrollIndicator={true}
-      >
-        <View style={styles.gutter}>
-          {Array.from({ length: lineCount }).map((_, i) => (
-            <Text key={i} style={styles.lineNumber}>
-              {i + 1}
-            </Text>
-          ))}
-        </View>
-
-        <TextInput
-          value={code}
-          onChangeText={setCode}
-          multiline
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          scrollEnabled={false}
-          style={styles.editorInput}
-          selection={selection}
-          onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
-          onKeyPress={handleKeyPress}
-        />
-      </ScrollView>
+  <ScrollView
+    contentContainerStyle={styles.scrollContent}
+    bounces={false}
+    showsVerticalScrollIndicator={true}
+  >
+    <View style={styles.gutter}>
+      {Array.from({ length: lineCount }).map((_, i) => (
+        <Text key={i} style={styles.lineNumber}>
+          {i + 1}
+        </Text>
+      ))}
     </View>
+
+    <View style={styles.editorInputWrapper}>
+      
+
+      <Editor
+  value={code}
+  onValueChange={setCode}
+  highlight={(value) =>
+    highlightMipsCode(value, theme.syntax ?? getFallbackSyntax(theme.text))
+  }
+  padding={16}
+  onKeyDown={handleKeyPress}
+
+  textareaClassName="mips-editor-textarea"
+  preClassName="mips-editor-highlight"
+
+  style={{
+    flex: 1,
+    minHeight: '100%',
+    fontFamily: 'monospace',
+    fontSize: 15,
+    lineHeight: '22px',
+
+    color: 'transparent',        // 👈 keep this
+    caretColor: theme.text,      // 👈 keep this
+
+    backgroundColor: 'transparent',
+    outline: 'none',
+  }}
+/>
+    </View>
+  </ScrollView>
+</View>
   </View>
 );
 }
@@ -201,21 +210,11 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     textAlign: 'right',
     paddingRight: 10,
   },
-  editorInput: {
-    flex: 1,
-    padding: 16,
-    paddingTop: 16,
-    fontSize: 15,
-    lineHeight: 22,
-    fontFamily: 'monospace',
-    color: theme.text,
-    textAlignVertical: 'top',
-    minHeight: '100%'
-  },
+  
    floatingMenuArea: {
     position: 'absolute',
     top: 10,
-    right: 10,
+    right: 25,
     zIndex: 20,
     elevation: 10,
     alignItems: 'flex-end',
@@ -255,4 +254,10 @@ chevronImage: {
   height: 28,
   resizeMode: 'contain',
 },
+editorInputWrapper: {
+  flex: 1,
+  position: 'relative',
+  minHeight: '100%',
+},
+
 });
