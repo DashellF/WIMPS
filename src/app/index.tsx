@@ -198,20 +198,22 @@ export default function IdeScreen() {
   // --- Database Save Logic ---
   const handleSave = async () => {
     const tabsToSave = tabsRef.current;
-    const cleanTabs = tabsToSave.map(t => ({ ...t, isDirty: false }));
-    const token = await getAuthToken();
 
-    if (tabsRef.current.length > 15) {
+    if (tabsToSave.length > 15) {
       setOutput('Save failed: maximum of 15 tabs allowed.');
       return;
     }
 
+    const byteSize = (str: string) => new TextEncoder().encode(str).length;
     const MAX_TAB_SIZE = 1 * 1024 * 1024;
-    const oversized = tabsRef.current.find(t => Buffer.byteLength(JSON.stringify(t), 'utf8') > MAX_TAB_SIZE);
+    const oversized = tabsToSave.find(t => byteSize(JSON.stringify(t)) > MAX_TAB_SIZE);
     if (oversized) {
       setOutput(`Save failed: "${oversized.name}" exceeds the 1MB size limit.`);
       return;
     }
+
+    const cleanTabs = tabsToSave.map(t => ({ ...t, isDirty: false }));
+    const token = await getAuthToken();
 
     if (token) {
       try {

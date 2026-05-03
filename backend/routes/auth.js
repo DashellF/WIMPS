@@ -97,10 +97,10 @@ router.post('/tabs', authenticate, async(req, res) => {
             return res.status(400).json({ error: `Cannot save more than ${MAX_TABS} tabs` });
         }
 
-        const MAX_TAB_SIZE_BYTES = 1 * 1024 * 1024;
+        const MAX_TAB_SIZE = 1 * 1024 * 1024;
         for (let i = 0; i < tabs.length; i++) {
             const tabSize = Buffer.byteLength(JSON.stringify(tabs[i]), 'utf8');
-            if (tabSize > MAX_TAB_SIZE_BYTES) {
+            if (tabSize > MAX_TAB_SIZE) {
                 return res.status(413).json({ error: `Tab at index ${i} exceeds the 1MB size limit` });
             }
         }
