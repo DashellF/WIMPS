@@ -266,8 +266,8 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
   },
   floatingMenuArea: {
     position: 'absolute',
-    top: 9,
-    right: 25,
+    top: 15,
+    right: 15,
     zIndex: 20,
     elevation: 10,
     alignItems: 'flex-end',
