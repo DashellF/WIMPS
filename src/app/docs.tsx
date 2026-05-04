@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
+  LayoutAnimation,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -14,10 +15,12 @@ import {
 } from 'react-native';
 
 import { PageWrapper } from '@/components/PageWrapper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Cookies from 'js-cookie';
 import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
 import type { Theme } from '../theme/themes';
 import { THEMES } from '../theme/themes';
+
 
 // ---------------------------------------------------------------------------
 // Theme switch (unchanged from original)
@@ -369,16 +372,38 @@ const DIRECTIVES: [string, string][] = [
 // ---------------------------------------------------------------------------
 export default function DocsScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('theme');
+        if (saved !== null) {
+          setIsDarkMode(saved === 'dark');
+          console.log("Theme loaded from storage:", saved);
+        }
+      } catch (e) {
+        console.error("Failed to load theme", e);
+      }
+    };
+    loadTheme();
+  }, []);
   const [search, setSearch] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
-  const toggleTheme = () => {
-    const next = !isDarkMode;
-    setIsDarkMode(next);
-    Cookies.set('theme', next ? 'dark' : 'light', { expires: 365 });
+  const toggleTheme = async () => {
+    const newMode = !isDarkMode;
+    
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    
+    setIsDarkMode(newMode);
+    
+    try {
+      await AsyncStorage.setItem('theme', newMode ? 'dark' : 'light');
+    } catch (e) {
+      console.error("Save error", e);
+    }
   };
 
   useEffect(() => {

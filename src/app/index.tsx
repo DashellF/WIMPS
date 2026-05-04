@@ -22,7 +22,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import Cookies from 'js-cookie';
 
 import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
@@ -32,6 +31,7 @@ import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStor
 import { assemble, feedInput, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
 
 import { PageWrapper } from '@/components/PageWrapper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Theme } from '../theme/themes';
 import { THEMES } from '../theme/themes';
 
@@ -162,6 +162,21 @@ export default function IdeScreen() {
   const [output, setOutput] = useState('Program output will appear here.');
   const [memoryData, setMemoryData] = useState<any[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('theme');
+        if (saved !== null) {
+          setIsDarkMode(saved === 'dark');
+          console.log("Theme loaded from storage:", saved);
+        }
+      } catch (e) {
+        console.error("Failed to load theme", e);
+      }
+    };
+    loadTheme();
+  }, []);
+
   const [showHex, setShowHex] = useState(true);
 
   // Console Input State
@@ -196,6 +211,7 @@ export default function IdeScreen() {
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
 
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
+
 
   const readLocalTabs = (): CodeTab[] => {
     if (Platform.OS !== 'web') return [];
@@ -503,14 +519,18 @@ export default function IdeScreen() {
     setMinimized(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(prev => {
-      const next = !prev;
-      if (Platform.OS === 'web') {
-        Cookies.set('theme', next ? 'dark' : 'light', { expires: 365 });
-      }
-      return next;
-    });
+  const toggleTheme = async () => {
+    const newMode = !isDarkMode;
+    
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    
+    setIsDarkMode(newMode);
+    
+    try {
+      await AsyncStorage.setItem('theme', newMode ? 'dark' : 'light');
+    } catch (e) {
+      console.error("Save error", e);
+    }
   };
 
   const updateMemory = () => setMemoryData(getMemoryRange(0x10010000, 20));
@@ -1159,8 +1179,8 @@ const styles = StyleSheet.create({
   desktopContent: { flex: 1, flexDirection: 'row' },
   editorColumn: { height: '100%', paddingRight: 4, paddingBottom: 12, zIndex: 100 },
   sideColumn: { height: '100%', paddingLeft: 4 },
-  resizerVertical: { width: 16, justifyContent: 'center', alignItems: 'center', cursor: 'col-resize' as any },
-  resizerHorizontal: { height: 16, justifyContent: 'center', alignItems: 'center', cursor: 'row-resize' as any, zIndex: 10 },
+  resizerVertical: { width: 16, justifyContent: 'center', alignItems: 'center', ...(Platform.OS === 'web' ? { cursor: 'col-resize' } : {})} as any,
+  resizerHorizontal: { height: 16, justifyContent: 'center', alignItems: 'center', zIndex: 10, ...(Platform.OS === 'web' ? { cursor: 'row-resize' } : {}) } as any,
   mobileContent: { flex: 1, flexDirection: 'column' },
   mobileMainArea: { flex: 1, zIndex: 100 },
   mobileTabBar: { flexDirection: 'row', height: 60, borderTopWidth: 1 },

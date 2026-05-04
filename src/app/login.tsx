@@ -1,6 +1,6 @@
 import { PageWrapper } from '@/components/PageWrapper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import Cookies from 'js-cookie';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { getApiHeaders, saveAuthToken } from '../helpers/authStorage';
 import { THEMES } from '../theme/themes';
+
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -57,23 +58,39 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
 
 export default function LoginScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('theme');
+        if (saved !== null) {
+          setIsDarkMode(saved === 'dark');
+          console.log("Theme loaded from storage:", saved);
+        }
+      } catch (e) {
+        console.error("Failed to load theme", e);
+      }
+    };
+    loadTheme();
+  }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const toggleTheme = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.create(150, 'easeInEaseOut', 'opacity'));
+
+  const toggleTheme = async () => {
     const newMode = !isDarkMode;
+    
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    
     setIsDarkMode(newMode);
-    Cookies.set('theme', newMode ? 'dark' : 'light', { expires: 365 }); 
+    
+    try {
+      await AsyncStorage.setItem('theme', newMode ? 'dark' : 'light');
+    } catch (e) {
+      console.error("Save error", e);
+    }
   };
 
-  useEffect(() => {
-    const savedTheme = Cookies.get('theme'); 
-    if (savedTheme) {
-      setIsDarkMode(savedTheme === 'dark');
-    }
-  }, []);
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);

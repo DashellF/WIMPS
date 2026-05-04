@@ -1,5 +1,7 @@
 import { PageWrapper } from '@/components/PageWrapper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -14,7 +16,6 @@ import {
   View
 } from 'react-native';
 
-import Cookies from 'js-cookie';
 import { getApiHeaders } from '../helpers/authStorage';
 import { THEMES } from '../theme/themes';
 
@@ -59,26 +60,39 @@ const ThemeSwitch = ({ isDark, toggle }: ThemeSwitchProps) => {
 
 export default function RegisterScreen() {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('theme');
+        if (saved !== null) {
+          setIsDarkMode(saved === 'dark');
+          console.log("Theme loaded from storage:", saved);
+        }
+      } catch (e) {
+        console.error("Failed to load theme", e);
+      }
+    };
+    loadTheme();
+  }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // JS-Cookie Persistence Logic
-  const toggleTheme = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  const toggleTheme = async () => {
     const newMode = !isDarkMode;
+    
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    
     setIsDarkMode(newMode);
-    Cookies.set('theme', newMode ? 'dark' : 'light', { expires: 365 });
-  };
-
-  useEffect(() => {
-    const savedTheme = Cookies.get('theme');
-    if (savedTheme) {
-      setIsDarkMode(savedTheme === 'dark');
+    
+    try {
+      await AsyncStorage.setItem('theme', newMode ? 'dark' : 'light');
+    } catch (e) {
+      console.error("Save error", e);
     }
-  }, []);
+  };
 
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
   const tStyles = useMemo(() => getThemeStyles(activeTheme), [activeTheme]);
