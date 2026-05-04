@@ -182,6 +182,7 @@ export default function IdeScreen() {
   });
 
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
+  const renameInputRef = useRef<TextInput>(null);
   const editorColumnRef = useRef<View>(null);
   const editorColumnLayout = useRef({ y: 0, height: 0 });
   const sideColumnRef = useRef<View>(null);
@@ -533,13 +534,26 @@ export default function IdeScreen() {
   const handleTabPress = (tabId: string) => {
     const now = Date.now();
     if (lastTapRef.current?.id === tabId && (now - lastTapRef.current.time) < 300) {
+      const currentName = tabs.find(t => t.id === tabId)?.name || '';
+      setActiveTabId(tabId);
+      setEditTabName(currentName);
       setEditingTabId(tabId);
-      setEditTabName(tabs.find(t => t.id === tabId)?.name || '');
+      lastTapRef.current = null;
     } else {
       setActiveTabId(tabId);
       lastTapRef.current = { id: tabId, time: now };
     }
   };
+
+  useEffect(() => {
+    if (!editingTabId) return;
+
+    const timer = setTimeout(() => {
+      renameInputRef.current?.focus();
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [editingTabId]);
 
   const handleAddTab = () => {
     const newId = String(Date.now());
@@ -636,7 +650,7 @@ export default function IdeScreen() {
   };
 
   const editorActions = useMemo(() => [
-    { label: 'Assemble', icon: require('../../assets/images/assemble_icon.png'), onPress: () => {
+    { label: 'Assemble', symbol: '🔨', onPress: () => {
         const r = assemble(activeCode);
         if (!r.ok) setOutput(`Assembly error:\n${r.error}`);
         else {
@@ -645,7 +659,7 @@ export default function IdeScreen() {
           setOutput('Assembled successfully.');
         }
     }},
-    { label: 'Run', icon: require('../../assets/images/run_icon.png'), onPress: () => {
+    { label: 'Run', symbol: '▶', onPress: () => {
         const state = runSim();
         if (state && 'error' in state) {
           setOutput(`Runtime error:\n${state.error}`);
@@ -654,7 +668,7 @@ export default function IdeScreen() {
           refreshUI(state);
         }
     }},
-    { label: 'Step', icon: require('../../assets/images/step_icon.png'), onPress: () => {
+    { label: 'Step', symbol: '⏭', onPress: () => {
         const state = stepSim();
         if (state && 'error' in state) {
           setOutput(`Step error:\n${state.error}`);
@@ -672,7 +686,7 @@ export default function IdeScreen() {
           }
         }
     }},
-    { label: 'Reset', icon: require('../../assets/images/reset_icon.png'), onPress: () => {
+    { label: 'Reset', symbol: '↻', onPress: () => {
         resetSim(); 
         setActiveLine(null);
         setRegisters(buildInitialRegisters()); 
@@ -761,17 +775,29 @@ export default function IdeScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} style={{ flex: 1 }}>
         {tabs.map((tab) => (
           <View key={tab.id} style={[styles.editorTab, { borderColor: activeTabId === tab.id ? '#3b82f6' : 'transparent' }]}>
-            <TouchableOpacity onPress={() => handleTabPress(tab.id)}>
-              {editingTabId === tab.id ? (
-                <TextInput
-                  autoFocus
-                  value={editTabName}
-                  onChangeText={setEditTabName}
-                  onBlur={handleCommitTabName}
-                  onSubmitEditing={handleCommitTabName}
-                  style={{ color: activeTheme.text, minWidth: 60 }}
-                />
-              ) : (
+            {editingTabId === tab.id ? (
+              <TextInput
+                ref={renameInputRef}
+                autoFocus
+                selectTextOnFocus
+                value={editTabName}
+                onChangeText={setEditTabName}
+                onBlur={handleCommitTabName}
+                onSubmitEditing={handleCommitTabName}
+                placeholderTextColor={activeTheme.subText}
+                selectionColor="#60a5fa"
+                cursorColor="#60a5fa"
+                style={[
+                  styles.renameInput,
+                  {
+                    color: activeTheme.text,
+                    backgroundColor: activeTheme.card,
+                    borderColor: activeTheme.border,
+                  },
+                ]}
+              />
+            ) : (
+              <TouchableOpacity onPress={() => handleTabPress(tab.id)}>
                 <Text style={{
                   color: activeTabId === tab.id ? activeTheme.text : activeTheme.subText,
                   fontWeight: activeTabId === tab.id ? '600' : '400',
@@ -779,8 +805,8 @@ export default function IdeScreen() {
                 }}>
                   {tab.name}{isLoggedIn && tab.isDirty ? '*' : ''}
                 </Text>
-              )}
-            </TouchableOpacity>
+              </TouchableOpacity>
+            )}
             {tabs.length > 1 && (
               <TouchableOpacity onPress={() => handleCloseTab(tab.id)} style={styles.tabCloseBtn}>
                 <Text style={{ color: activeTheme.subText, fontSize: 12, lineHeight: 14 }}>✕</Text>
@@ -1157,6 +1183,20 @@ const styles = StyleSheet.create({
   
   editorTabBar: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'center', zIndex: 100 },
   editorTab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2, flexShrink: 0 },
+  renameInput: {
+    minWidth: 90,
+    maxWidth: 220,
+    height: 24,
+    paddingHorizontal: 6,
+    paddingVertical: 0,
+    marginRight: 4,
+    borderWidth: 1,
+    borderRadius: 4,
+    fontSize: 14,
+    fontWeight: '600',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   tabCloseBtn: { paddingHorizontal: 4, paddingVertical: 2, marginLeft: 2 },
   tabActionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderLeftWidth: 1, justifyContent: 'center', alignItems: 'center' },
   noSelect: { userSelect: 'none' } as any,

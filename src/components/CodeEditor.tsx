@@ -106,14 +106,23 @@ export function CodeEditor({ code, setCode, actions, theme, activeLine }: any) {
                 key={a.label}
                 style={styles.floatingActionButton}
                 onPress={a.onPress}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
               >
-                {a.icon ? (
+                {a.symbol ? (
+                  <Text
+                    style={[styles.actionSymbol, { color: theme.text }]}
+                    allowFontScaling={false}
+                  >
+                    {a.symbol}
+                  </Text>
+                ) : a.icon ? (
                   <Image
                     source={a.icon}
                     style={[styles.actionIcon, { tintColor: theme.text }]}
                   />
                 ) : (
-                  <Text style={styles.actionButtonText}>{a.label}</Text>
+                  <Text style={styles.actionButtonText} numberOfLines={1}>{a.label}</Text>
                 )}
               </TouchableOpacity>
             ))}
@@ -215,6 +224,12 @@ const getThemeStyles = (theme: Theme) => StyleSheet.create({
     width: 20,
     height: 20,
     resizeMode: 'contain',
+  },
+  actionSymbol: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   actionButtonText: { 
     color: theme.text, 
