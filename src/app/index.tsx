@@ -7,7 +7,6 @@ import {
   LayoutAnimation,
   PanResponder,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
   View,
   useWindowDimensions
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -35,11 +35,13 @@ import { PageWrapper } from '@/components/PageWrapper';
 import type { Theme } from '../theme/themes';
 import { THEMES } from '../theme/themes';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+// Safely enable LayoutAnimations avoiding warnings on New Architecture
+const isNewArchitecture = (global as any).__turboModuleProxy != null;
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental && !isNewArchitecture) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
 const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
 
 // --- Helper Components ---
@@ -94,8 +96,47 @@ interface CodeTab {
   id: string;
   name: string;
   code: string;
-  isDirty?: boolean; 
+  isDirty?: boolean;
+  _id?: string; // Mongo/Mongoose id for tabs loaded from the database
 }
+
+const idToString = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+
+  if (typeof value === 'object' && typeof (value as { toString?: unknown }).toString === 'function') {
+    const asString = (value as { toString: () => string }).toString();
+    return asString && asString !== '[object Object]' ? asString : undefined;
+  }
+
+  return undefined;
+};
+
+const normalizeStoredTab = (item: any): CodeTab => {
+  const mongoId = idToString(item?._id);
+  const clientId = idToString(item?.id);
+  const id = clientId || mongoId || String(Date.now() + Math.random());
+
+  return {
+    ...item,
+    id,
+    _id: mongoId,
+    name: item?.name || 'untitled.asm',
+    code: item?.code || '',
+    isDirty: Boolean(item?.isDirty),
+  };
+};
+
+const getTabIdentifiers = (tab: Partial<CodeTab> | null | undefined): string[] => {
+  const identifiers = [idToString(tab?.id), idToString(tab?._id)].filter((id): id is string => Boolean(id));
+  return identifiers.filter((id, index) => identifiers.indexOf(id) === index);
+};
+
+const tabMatchesIdentifiers = (tab: Partial<CodeTab>, identifiers: string[]) => {
+  const tabIdentifiers = getTabIdentifiers(tab);
+  return tabIdentifiers.some(id => identifiers.includes(id));
+};
 
 export default function IdeScreen() {
   const { height, width } = useWindowDimensions();
@@ -161,7 +202,7 @@ export default function IdeScreen() {
     try {
       const localTabs = localStorage.getItem('saved_tabs');
       const parsed = localTabs ? JSON.parse(localTabs) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed.map(normalizeStoredTab) : [];
     } catch (err) {
       console.error('Failed to read local saved tabs', err);
       return [];
@@ -195,7 +236,12 @@ export default function IdeScreen() {
     }
 
     const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    // Safely map incoming tabs to ensure each file has a stable UI id
+    // while still preserving the Mongo _id for matching/deleting.
+    if (Array.isArray(data)) {
+      return data.map(normalizeStoredTab);
+    }
+    return [];
   };
 
   // --- Database Save Logic ---
@@ -291,7 +337,7 @@ export default function IdeScreen() {
               setActiveTabId(DEFAULT_TABS[0].id);
             }
           } catch (err) {
-            console.error('Error loading tabs from DB', err);
+            console.log('Error loading tabs from DB (ignored internally)', err);
           }
 
           return;
@@ -341,7 +387,7 @@ export default function IdeScreen() {
         const data = await fetchDbTabs(token);
         setDbFiles(data);
       } catch (err) {
-        console.error('Failed to load DB files', err);
+        console.log('Failed to load DB files', err);
         setDbFiles([]);
       }
     } else if (Platform.OS === 'web') {
@@ -368,6 +414,84 @@ export default function IdeScreen() {
     setActiveTabId(targetId);
   };
 
+  const handleDeleteFile = async (file: CodeTab) => {
+    const idsToRemove = getTabIdentifiers(file);
+    if (idsToRemove.length === 0) return;
+
+    const previousDbFiles = dbFiles;
+    const previousOpenTabs = tabsRef.current;
+    const previousActiveTabId = activeTabId;
+    const previousLocalTabs = Platform.OS === 'web' ? readLocalTabs() : [];
+
+    const nextDbFiles = previousDbFiles.filter(savedFile => !tabMatchesIdentifiers(savedFile, idsToRemove));
+    const deletedFileName = file.name || 'file';
+
+    // 1. Remove from the load menu immediately and close the menu.
+    setDbFiles(nextDbFiles);
+    setShowLoadMenu(false);
+
+    // 2. Close the tab if this saved file is currently open.
+    const deletedOpenTabIndex = previousOpenTabs.findIndex(tab => tabMatchesIdentifiers(tab, idsToRemove));
+    const nextOpenTabsWithoutDeleted = previousOpenTabs.filter(tab => !tabMatchesIdentifiers(tab, idsToRemove));
+
+    if (deletedOpenTabIndex !== -1) {
+      const nextOpenTabs = nextOpenTabsWithoutDeleted.length > 0 ? nextOpenTabsWithoutDeleted : DEFAULT_TABS;
+      const shouldMoveActiveTab = idsToRemove.includes(previousActiveTabId) || !nextOpenTabs.some(tab => tab.id === previousActiveTabId);
+      const nextActiveTab = shouldMoveActiveTab
+        ? nextOpenTabs[Math.min(deletedOpenTabIndex, nextOpenTabs.length - 1)]
+        : nextOpenTabs.find(tab => tab.id === previousActiveTabId) || nextOpenTabs[0];
+
+      setTabs(nextOpenTabs);
+      setActiveTabId(nextActiveTab.id);
+    }
+
+    // 3. Delete from localStorage on web. This runs even when logged in, because
+    // the same file may also exist in local saved_tabs from a previous session.
+    if (Platform.OS === 'web') {
+      writeLocalTabs(previousLocalTabs.filter(localFile => !tabMatchesIdentifiers(localFile, idsToRemove)));
+    }
+
+    // 4. Delete from MongoDB by saving the remaining saved files back to the server.
+    // This matches the existing save/load API shape in this file: GET/POST /auth/tabs.
+    // It avoids the broken DELETE /auth/tabs/:id path that was returning 404.
+    const token = await getAuthToken();
+    if (!token) return;
+
+    try {
+      const cleanTabs = nextDbFiles.map(tab => ({ ...tab, isDirty: false }));
+      const res = await fetch(`${API_BASE_URL}/auth/tabs`, {
+        method: 'POST',
+        headers: getApiHeaders(token, true),
+        body: JSON.stringify({ tabs: cleanTabs }),
+      });
+
+      if (res.status === 401) {
+        await clearAuthToken();
+        setIsLoggedIn(false);
+        loadedSessionKeyRef.current = null;
+        throw new Error('Your login expired. Please sign in again.');
+      }
+
+      if (!res.ok) {
+        throw new Error(`Failed to delete from DB (${res.status})`);
+      }
+
+      setOutput(`Deleted "${deletedFileName}".`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete from DB.';
+      setOutput(message);
+
+      // Roll back visible state and localStorage if the DB update fails, so the UI
+      // does not claim the file was deleted while MongoDB still has it.
+      setDbFiles(previousDbFiles);
+      setTabs(previousOpenTabs);
+      setActiveTabId(previousActiveTabId);
+      if (Platform.OS === 'web') {
+        writeLocalTabs(previousLocalTabs);
+      }
+    }
+  };
+
   // --- IDE Logic ---
   const setCode = (newCode: string) => {
     setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code: newCode, isDirty: true } : t));
@@ -381,7 +505,9 @@ export default function IdeScreen() {
   const toggleTheme = () => {
     setIsDarkMode(prev => {
       const next = !prev;
-      Cookies.set('theme', next ? 'dark' : 'light', { expires: 365 });
+      if (Platform.OS === 'web') {
+        Cookies.set('theme', next ? 'dark' : 'light', { expires: 365 });
+      }
       return next;
     });
   };
@@ -459,7 +585,7 @@ export default function IdeScreen() {
           });
         }
       } catch (err) {
-        console.error('Download failed:', err);
+        console.log('Download failed:', err);
       }
     }
   };
@@ -497,7 +623,7 @@ export default function IdeScreen() {
         setTabs(prev => [...prev, { id: newId, name: asset.name ?? 'uploaded.asm', code: text, isDirty: true }]);
         setActiveTabId(newId);
       } catch (err) {
-        console.error('Upload failed:', err);
+        console.log('Upload failed:', err);
       }
     }
   };
@@ -605,14 +731,23 @@ export default function IdeScreen() {
             <Text style={{ padding: 12, color: activeTheme.subText, fontStyle: 'italic' }}>No saved files.</Text>
           ) : (
             dbFiles.map(file => (
-              <TouchableOpacity
-                key={file.id}
-                style={[styles.dropdownItem, { borderBottomColor: activeTheme.border }]}
-                onPressIn={() => handleSelectDbFile(file)}
-                delayPressIn={0}
-              >
-                <Text style={{ color: activeTheme.text }} numberOfLines={1}>{file.name}</Text>
-              </TouchableOpacity>
+              <View key={file.id} style={[styles.dropdownItem, { borderBottomColor: activeTheme.border }]}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingHorizontal: 16, paddingVertical: 14 }}
+                  onPressIn={() => handleSelectDbFile(file)}
+                  delayPressIn={0}
+                >
+                  <Text style={{ color: activeTheme.text }} numberOfLines={1}>{file.name}</Text>
+                </TouchableOpacity>
+                {(isLoggedIn || Platform.OS === 'web') && (
+                  <TouchableOpacity 
+                    style={{ paddingHorizontal: 16, paddingVertical: 14 }} 
+                    onPress={() => handleDeleteFile(file)}
+                  >
+                    <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 16 }}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             ))
           )}
         </ScrollView>
@@ -622,37 +757,39 @@ export default function IdeScreen() {
 
   // --- Shared Tab ScrollView ---
   const renderTabScrollView = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-      {tabs.map((tab) => (
-        <View key={tab.id} style={[styles.editorTab, { borderColor: activeTabId === tab.id ? '#3b82f6' : 'transparent' }]}>
-          <TouchableOpacity onPress={() => handleTabPress(tab.id)}>
-            {editingTabId === tab.id ? (
-              <TextInput
-                autoFocus
-                value={editTabName}
-                onChangeText={setEditTabName}
-                onBlur={handleCommitTabName}
-                onSubmitEditing={handleCommitTabName}
-                style={{ color: activeTheme.text, minWidth: 60 }}
-              />
-            ) : (
-              <Text style={{
-                color: activeTabId === tab.id ? activeTheme.text : activeTheme.subText,
-                fontWeight: activeTabId === tab.id ? '600' : '400',
-                marginRight: tabs.length > 1 ? 4 : 8,
-              }}>
-                {tab.name}{isLoggedIn && tab.isDirty ? '*' : ''}
-              </Text>
-            )}
-          </TouchableOpacity>
-          {tabs.length > 1 && (
-            <TouchableOpacity onPress={() => handleCloseTab(tab.id)} style={styles.tabCloseBtn}>
-              <Text style={{ color: activeTheme.subText, fontSize: 12, lineHeight: 14 }}>✕</Text>
+    <View style={{ flex: 1, overflow: 'hidden' }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} style={{ flex: 1 }}>
+        {tabs.map((tab) => (
+          <View key={tab.id} style={[styles.editorTab, { borderColor: activeTabId === tab.id ? '#3b82f6' : 'transparent' }]}>
+            <TouchableOpacity onPress={() => handleTabPress(tab.id)}>
+              {editingTabId === tab.id ? (
+                <TextInput
+                  autoFocus
+                  value={editTabName}
+                  onChangeText={setEditTabName}
+                  onBlur={handleCommitTabName}
+                  onSubmitEditing={handleCommitTabName}
+                  style={{ color: activeTheme.text, minWidth: 60 }}
+                />
+              ) : (
+                <Text style={{
+                  color: activeTabId === tab.id ? activeTheme.text : activeTheme.subText,
+                  fontWeight: activeTabId === tab.id ? '600' : '400',
+                  marginRight: tabs.length > 1 ? 4 : 8,
+                }}>
+                  {tab.name}{isLoggedIn && tab.isDirty ? '*' : ''}
+                </Text>
+              )}
             </TouchableOpacity>
-          )}
-        </View>
-      ))}
-    </ScrollView>
+            {tabs.length > 1 && (
+              <TouchableOpacity onPress={() => handleCloseTab(tab.id)} style={styles.tabCloseBtn}>
+                <Text style={{ color: activeTheme.subText, fontSize: 12, lineHeight: 14 }}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 
   // --- Desktop Tab Bar ---
@@ -703,7 +840,7 @@ export default function IdeScreen() {
   const renderTabBar = () => (
     <View style={[styles.editorTabBar, { backgroundColor: activeTheme.card, borderColor: activeTheme.border }]}>
       {renderTabScrollView()}
-      <View style={{ flexDirection: 'row', alignItems: 'stretch', zIndex: 100 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'stretch', flexShrink: 0, zIndex: 100 }}>
         {isLoggedIn && (
           <>
             <TouchableOpacity onPress={handleSave} style={[styles.tabActionBtn, { borderColor: activeTheme.border }]}>
@@ -1019,7 +1156,7 @@ const styles = StyleSheet.create({
   menuItem: { padding: 12 },
   
   editorTabBar: { flexDirection: 'row', borderBottomWidth: 1, alignItems: 'center', zIndex: 100 },
-  editorTab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2 },
+  editorTab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2, flexShrink: 0 },
   tabCloseBtn: { paddingHorizontal: 4, paddingVertical: 2, marginLeft: 2 },
   tabActionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderLeftWidth: 1, justifyContent: 'center', alignItems: 'center' },
   noSelect: { userSelect: 'none' } as any,
@@ -1030,7 +1167,7 @@ const styles = StyleSheet.create({
   desktopTabActions: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginLeft: 'auto' as any,
+    flexShrink: 0,
     zIndex: 100,
   },
   desktopFileBtn: {
@@ -1098,8 +1235,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   dropdownItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 14, 
+    flexDirection: 'row',
+    alignItems: 'center',
     borderBottomWidth: 1,
   },
   consoleInputBar: { 
