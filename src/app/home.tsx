@@ -16,6 +16,7 @@ import {
     useWindowDimensions,
     View,
 } from 'react-native';
+import { PageWrapper } from '../components/PageWrapper';
 import { THEMES } from '../theme/themes';
 
 // ─── Feature cards data ───────────────────────────────────────────────────────
@@ -309,24 +310,26 @@ export default function HomeScreen() {
   const activeTheme = isDarkMode ? THEMES.dark : THEMES.light;
 
   return (
-    <SafeAreaView style={[staticStyles.safe, { backgroundColor: activeTheme.bg }]}>
-      <StatusBar barStyle={activeTheme.statusBarStyle as any} />
-      <TopBar isDark={isDarkMode} toggleTheme={toggleTheme} theme={activeTheme} onLayout={setNavbarHeight} />
-      <ScrollView
-        ref={scrollRef}
-        style={staticStyles.scroll}
-        contentContainerStyle={staticStyles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        pagingEnabled={false}
-        scrollEventThrottle={16}
-      >
-        <HeroSection theme={activeTheme} screenHeight={heroHeight} onArrowPress={scrollToContent} />
-        <FeatureGrid theme={activeTheme} />
-        <View style={[staticStyles.separator, { borderColor: activeTheme.border }]} />
-        <InfoSection theme={activeTheme} />
-        <Footer theme={activeTheme} />
-      </ScrollView>
-    </SafeAreaView>
+    <PageWrapper page="home">
+      <SafeAreaView style={[staticStyles.safe, { backgroundColor: activeTheme.bg }]}>
+        <StatusBar barStyle={activeTheme.statusBarStyle as any} />
+        <TopBar isDark={isDarkMode} toggleTheme={toggleTheme} theme={activeTheme} onLayout={setNavbarHeight} />
+        <ScrollView
+          ref={scrollRef}
+          style={staticStyles.scroll}
+          contentContainerStyle={staticStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          pagingEnabled={false}
+          scrollEventThrottle={16}
+        >
+          <HeroSection theme={activeTheme} screenHeight={heroHeight} onArrowPress={scrollToContent} />
+          <FeatureGrid theme={activeTheme} />
+          <View style={[staticStyles.separator, { borderColor: activeTheme.border }]} />
+          <InfoSection theme={activeTheme} />
+          <Footer theme={activeTheme} />
+        </ScrollView>
+      </SafeAreaView>
+    </PageWrapper>
   );
 }
 

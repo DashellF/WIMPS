@@ -125,7 +125,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <PageWrapper>
+    <PageWrapper page="register">
       <SafeAreaView style={tStyles.safeArea}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>

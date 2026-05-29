@@ -443,7 +443,7 @@ export default function DocsScreen() {
   const t = activeTheme;
 
   return (
-    <PageWrapper>
+    <PageWrapper page="docs">
       <SafeAreaView style={tStyles.safeArea}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>

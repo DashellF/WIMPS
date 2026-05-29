@@ -128,24 +128,30 @@ function registerHandlers(sim: JsMips) {
 
   sim.registerHandler('readInt', () => {
     if (inputCursor < allInputs.length) {
-      return parseInt(allInputs[inputCursor++], 10) || 0;
+      const val = allInputs[inputCursor++];
+      outputBuffer += val + '\n';
+      return parseInt(val, 10) || 0;
     }
     isBlockedForInput = true;
-    return 0; // sentinel – execution stops before this is used
+    return 0;
   });
 
   sim.registerHandler('readString', () => {
     if (inputCursor < allInputs.length) {
-      return allInputs[inputCursor++] ?? '';
+      const val = allInputs[inputCursor++] ?? '';
+      outputBuffer += val + '\n';
+      return val;
     }
     isBlockedForInput = true;
-    return ''; // sentinel
+    return '';
   });
 
   sim.registerHandler('readChar', () => {
     if (inputCursor < allInputs.length) {
       const s = allInputs[inputCursor++] ?? '';
-      return s.charAt(0);
+      const c = s.charAt(0);
+      outputBuffer += c + '\n';
+      return c;
     }
     isBlockedForInput = true;
     return '';
@@ -153,7 +159,9 @@ function registerHandlers(sim: JsMips) {
 
   sim.registerHandler('readFloat', () => {
     if (inputCursor < allInputs.length) {
-      return parseFloat(allInputs[inputCursor++]) || 0;
+      const val = allInputs[inputCursor++];
+      outputBuffer += val + '\n';
+      return parseFloat(val) || 0;
     }
     isBlockedForInput = true;
     return 0;
@@ -161,7 +169,9 @@ function registerHandlers(sim: JsMips) {
 
   sim.registerHandler('readDouble', () => {
     if (inputCursor < allInputs.length) {
-      return parseFloat(allInputs[inputCursor++]) || 0;
+      const val = allInputs[inputCursor++];
+      outputBuffer += val + '\n';
+      return parseFloat(val) || 0;
     }
     isBlockedForInput = true;
     return 0;

@@ -202,6 +202,8 @@ export default function IdeScreen() {
   const editorColumnLayout = useRef({ y: 0, height: 0 });
   const sideColumnRef = useRef<View>(null);
   const sideColumnLayout = useRef({ y: 0, height: 0 });
+  const consoleScrollRef = useRef<ScrollView>(null);
+  const consoleInputRef = useRef<TextInput>(null);
 
   const tabsRef = useRef(tabs);
   const loadedSessionKeyRef = useRef<string | null>(null);
@@ -575,6 +577,20 @@ export default function IdeScreen() {
     return () => clearTimeout(timer);
   }, [editingTabId]);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      consoleScrollRef.current?.scrollToEnd({ animated: false });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [output, isWaiting]);
+
+  useEffect(() => {
+    if (isWaiting) {
+      const t = setTimeout(() => consoleInputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [isWaiting]);
+
   const handleAddTab = () => {
     const newId = String(Date.now());
     const newName = `file${tabs.length + 1}.asm`;
@@ -754,6 +770,55 @@ export default function IdeScreen() {
     },
     onPanResponderRelease: () => setIsResizing(false),
   }), []);
+
+  // --- Console Renderer ---
+  const renderConsoleInner = () => {
+    // Split output at last newline so the input field appears inline with the prompt.
+    const lastNl = isWaiting ? output.lastIndexOf('\n') : -1;
+    const preInput    = lastNl >= 0 ? output.slice(0, lastNl + 1) : (isWaiting ? '' : output);
+    const inlinePrompt = lastNl >= 0 ? output.slice(lastNl + 1) : (isWaiting ? output : '');
+
+    return (
+      <View style={{ flex: 1, backgroundColor: activeTheme.card }}>
+        <ScrollView ref={consoleScrollRef} style={{ flex: 1, padding: 14 }}>
+          <Text style={tStyles.consoleText}>{isWaiting ? preInput : output}</Text>
+          {isWaiting && (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              {inlinePrompt ? (
+                <Text style={tStyles.consoleText}>{inlinePrompt}</Text>
+              ) : null}
+              <TextInput
+                ref={consoleInputRef}
+                autoFocus
+                value={consoleInput}
+                onChangeText={setConsoleInput}
+                onSubmitEditing={handleSendInput}
+                blurOnSubmit={false}
+                returnKeyType="send"
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                style={[
+                  tStyles.consoleText,
+                  {
+                    flex: 1,
+                    padding: 0,
+                    margin: 0,
+                    minWidth: 60,
+                    includeFontPadding: false,
+                  } as any,
+                  Platform.OS === 'web' && {
+                    outline: 'none',
+                    backgroundColor: 'transparent',
+                  } as any,
+                ]}
+              />
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
 
   // --- Dropdown Menu Renderers ---
   const renderLoadMenu = (isDesktop: boolean) => {
@@ -937,7 +1002,7 @@ export default function IdeScreen() {
   );
 
   return (
-    <PageWrapper>
+    <PageWrapper page="ide">
       <SafeAreaView style={[tStyles.safeArea, isResizing && styles.noSelect]}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         
@@ -1018,31 +1083,14 @@ export default function IdeScreen() {
                     <View {...panResponderVertical.panHandlers} style={styles.resizerHorizontal}><View style={tStyles.resizerHorizontalLine} /></View>
                   )}
 
-                  <WindowWrapper 
-                    title="Console Output" 
-                    theme={activeTheme} 
-                    isMinimized={minimized.console} 
-                    onToggleMinimize={() => toggleWindow('console')} 
+                  <WindowWrapper
+                    title="Console Output"
+                    theme={activeTheme}
+                    isMinimized={minimized.console}
+                    onToggleMinimize={() => toggleWindow('console')}
                     style={!minimized.console ? { height: minimized.editor ? '100%' : `${100 - editorHeightPct}%` } : { height: 40 }}
                   >
-                    <View style={{ flex: 1, backgroundColor: activeTheme.card }}>
-                      <ScrollView style={{ flex: 1, padding: 14 }}>
-                        <Text style={tStyles.consoleText}>{output}</Text>
-                        {isWaiting && <Text style={{ color: '#2563eb', fontWeight: 'bold', marginTop: 8 }}>[WAITING FOR INPUT...]</Text>}
-                      </ScrollView>
-                      <View style={[styles.consoleInputBar, { borderColor: activeTheme.border }]}>
-                        <Text style={{ color: activeTheme.subText, fontFamily: 'monospace', marginRight: 4 }}>$</Text>
-                        <TextInput
-                          style={{ flex: 1, color: activeTheme.text, fontFamily: 'monospace' }}
-                          value={consoleInput}
-                          onChangeText={setConsoleInput}
-                          placeholder="Type input here..."
-                          placeholderTextColor={activeTheme.subText}
-                          onSubmitEditing={handleSendInput}
-                          blurOnSubmit={false}
-                        />
-                      </View>
-                    </View>
+                    {renderConsoleInner()}
                   </WindowWrapper>
                 </View>
               )}
@@ -1084,25 +1132,7 @@ export default function IdeScreen() {
                 )}
                 {mobileView === 'console' && (
                   <WindowWrapper title="Console" theme={activeTheme} isMinimized={false} onToggleMinimize={null} style={{ height: '100%' }}>
-                    <View style={{ flex: 1, backgroundColor: activeTheme.card }}>
-                      <ScrollView style={{ flex: 1, padding: 14 }}>
-                        <Text style={tStyles.consoleText}>{output}</Text>
-                        {isWaiting && <Text style={{ color: '#2563eb', fontWeight: 'bold', marginTop: 8 }}>[WAITING FOR INPUT...]</Text>}
-                      </ScrollView>
-                      <View style={[styles.consoleInputBar, { borderColor: activeTheme.border }]}>
-                        <Text style={{ color: activeTheme.subText, fontFamily: 'monospace', marginRight: 4 }}>$</Text>
-                        <TextInput
-                          style={{ flex: 1, color: activeTheme.text, fontFamily: 'monospace' }}
-                          value={consoleInput}
-                          onChangeText={setConsoleInput}
-                          placeholder="Type input here..."
-                          placeholderTextColor={activeTheme.subText}
-                          onSubmitEditing={handleSendInput}
-                          blurOnSubmit={false}
-                        />
-                        <TouchableOpacity onPress={handleSendInput}><Text style={{ color: '#2563eb', fontWeight: '700', marginLeft: 8 }}>SEND</Text></TouchableOpacity>
-                      </View>
-                    </View>
+                    {renderConsoleInner()}
                   </WindowWrapper>
                 )}
                 {mobileView === 'registers' && (
@@ -1298,12 +1328,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-  },
-  consoleInputBar: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 10, 
-    borderTopWidth: 1, 
-    backgroundColor: 'rgba(0,0,0,0.03)' 
   },
 });

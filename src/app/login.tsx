@@ -114,7 +114,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <PageWrapper>
+    <PageWrapper page="auth">
       <SafeAreaView style={tStyles.safeArea}>
         <StatusBar barStyle={activeTheme.statusBarStyle as any} />
         <View style={tStyles.container}>
