@@ -585,12 +585,13 @@ export default function IdePage() {
               {tabs.map(tab => {
                 const isHovered = hoveredTabId === tab.id;
                 return (
-                  <button
+                  <div
                     key={tab.id}
-                    type="button"
                     role="tab"
+                    tabIndex={0}
                     aria-selected={tab.id === activeTabId}
                     onClick={() => setActiveTabId(tab.id)}
+                    onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
                     onMouseEnter={() => setHoveredTabId(tab.id)}
                     onMouseLeave={() => setHoveredTabId(null)}
                     className="ide-tab"
@@ -660,7 +661,7 @@ export default function IdePage() {
                         <TabTrashIcon />
                       </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
