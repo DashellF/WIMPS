@@ -22,6 +22,136 @@ interface CodeTab {
 
 const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
 
+// ---------------------------------------------------------------------------
+// Example files shown in the Files drawer for all users
+// ---------------------------------------------------------------------------
+interface ExampleFile { name: string; description: string; code: string; }
+const EXAMPLE_FILES: ExampleFile[] = [
+  {
+    name: 'hello.asm',
+    description: 'Hello, World!',
+    code:
+`# Hello, World!
+.data
+msg: .asciiz "Hello, World!\\n"
+
+.text
+main:
+    li   $v0, 4
+    la   $a0, msg
+    syscall
+
+    li   $v0, 10
+    syscall`,
+  },
+  {
+    name: 'quadhex.asm',
+    description: 'QuadHex — like FizzBuzz, but for 4, 6, and 24',
+    code:
+`# QuadHex — like FizzBuzz, but for 4, 6, and 24
+.data
+str_quad:    .asciiz "Quad"
+str_hex:     .asciiz "Hex"
+str_quadhex: .asciiz "QuadHex"
+str_newline: .asciiz "\\n"
+
+.text
+main:
+    li   $t0, 1          # counter
+    li   $t1, 40         # limit
+
+loop:
+    bgt  $t0, $t1, done
+
+    # divisible by 24?
+    li   $t2, 24
+    div  $t0, $t2
+    mfhi $t3
+    beqz $t3, print_quadhex
+
+    # divisible by 6?
+    li   $t2, 6
+    div  $t0, $t2
+    mfhi $t3
+    beqz $t3, print_hex
+
+    # divisible by 4?
+    li   $t2, 4
+    div  $t0, $t2
+    mfhi $t3
+    beqz $t3, print_quad
+
+    # otherwise: print the number
+    li   $v0, 1
+    move $a0, $t0
+    syscall
+    j    next
+
+print_quadhex:
+    li   $v0, 4
+    la   $a0, str_quadhex
+    syscall
+    j    next
+
+print_hex:
+    li   $v0, 4
+    la   $a0, str_hex
+    syscall
+    j    next
+
+print_quad:
+    li   $v0, 4
+    la   $a0, str_quad
+    syscall
+
+next:
+    li   $v0, 4
+    la   $a0, str_newline
+    syscall
+    addi $t0, $t0, 1
+    j    loop
+
+done:
+    li   $v0, 10
+    syscall`,
+  },
+  {
+    name: 'fibonacci.asm',
+    description: 'First 10 Fibonacci numbers (iterative)',
+    code:
+`# Print the first 10 Fibonacci numbers
+.data
+sep: .asciiz "\\n"
+
+.text
+main:
+    li   $t0, 0        # a
+    li   $t1, 1        # b
+    li   $t2, 10       # count
+
+loop:
+    beqz $t2, done
+
+    li   $v0, 1
+    move $a0, $t0
+    syscall
+
+    li   $v0, 4
+    la   $a0, sep
+    syscall
+
+    add  $t3, $t0, $t1
+    move $t0, $t1
+    move $t1, $t3
+    addi $t2, $t2, -1
+    j    loop
+
+done:
+    li   $v0, 10
+    syscall`,
+  },
+];
+
 const buildInitialRegisters = (): RegisterValue[] =>
   ['$zero','$at','$v0','$v1','$a0','$a1','$a2','$a3',
    '$t0','$t1','$t2','$t3','$t4','$t5','$t6','$t7',
@@ -55,6 +185,21 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
 
 function writeLocalState(tabs: CodeTab[], activeTabId: string) {
   try { localStorage.setItem('saved_tabs', JSON.stringify({ tabs, activeTabId })); } catch {}
+}
+
+// Separate store for explicitly saved guest files (distinct from the live session state).
+// Only written when the user hits Save — closing a tab doesn't touch this store.
+function readSavedFiles(): CodeTab[] {
+  try {
+    const raw = localStorage.getItem('saved_files');
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed)) return parsed.map(normalizeTab);
+  } catch {}
+  return [];
+}
+
+function writeSavedFiles(files: CodeTab[]) {
+  try { localStorage.setItem('saved_files', JSON.stringify(files)); } catch {}
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +373,13 @@ export default function IdePage() {
     }
   };
 
+  const handleSaveLocal = () => {
+    const clean = tabsRef.current.map(t => ({ ...t, isDirty: false }));
+    writeSavedFiles(clean);
+    setTabs(clean);
+    setOutput('Saved to browser.');
+  };
+
   const handleLogout = () => {
     clearAuthToken();
     setIsLoggedIn(false);
@@ -236,13 +388,13 @@ export default function IdePage() {
   // Shared helper: removes a tab from local state and fixes the active tab.
   const removeTabLocally = useCallback((tabId: string) => {
     setTabs(prev => {
+      const idx = prev.findIndex(t => t.id === tabId);
+      if (idx === -1) return prev;
       if (prev.length === 1) {
         const newId = String(Date.now());
         setActiveTabId(newId);
         return [{ id: newId, name: 'file1.asm', code: '', isDirty: false }];
       }
-      const idx = prev.findIndex(t => t.id === tabId);
-      if (idx === -1) return prev;
       const next = prev[idx === 0 ? 1 : idx - 1];
       if (activeTabId === tabId) setActiveTabId(next.id);
       return prev.filter(t => t.id !== tabId);
@@ -373,7 +525,7 @@ export default function IdePage() {
     { label: 'Reset',     symbol: '↺',  onPress: handleReset },
     { label: 'Upload',    symbol: '↑',  onPress: handleUpload },
     { label: 'Download',  symbol: '↓',  onPress: handleDownload },
-    ...(isLoggedIn ? [{ label: 'Save', symbol: '💾', onPress: handleSave }] : []),
+    { label: 'Save', symbol: '💾', onPress: isLoggedIn ? handleSave : handleSaveLocal },
   ];
 
   const hDragHandle = (
@@ -570,16 +722,14 @@ export default function IdePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <ThemeSwitch />
           <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
-          {isLoggedIn && (
-            <button
-              type="button"
-              onClick={() => setFilesDrawerOpen(true)}
-              title="Your cloud files"
-              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
-            >
-              Files
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setFilesDrawerOpen(true)}
+            title="Files"
+            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
+          >
+            Files
+          </button>
           {isLoggedIn ? (
             <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
           ) : (
@@ -697,6 +847,7 @@ export default function IdePage() {
         open={filesDrawerOpen}
         onClose={() => setFilesDrawerOpen(false)}
         theme={theme}
+        isLoggedIn={isLoggedIn}
         tabs={tabs}
         setTabs={setTabs}
         activeTabId={activeTabId}
@@ -729,6 +880,7 @@ interface FilesDrawerProps {
   open: boolean;
   onClose: () => void;
   theme: import('../theme/themes').Theme;
+  isLoggedIn: boolean;
   tabs: CodeTab[];
   setTabs: React.Dispatch<React.SetStateAction<CodeTab[]>>;
   activeTabId: string;
@@ -736,23 +888,29 @@ interface FilesDrawerProps {
   removeTabLocally: (tabId: string) => void;
 }
 
-function FilesDrawer({ open, onClose, theme, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally }: FilesDrawerProps) {
+function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally }: FilesDrawerProps) {
   const [serverFiles, setServerFiles] = useState<CodeTab[]>([]);
+  const [localFiles, setLocalFiles] = useState<CodeTab[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    const token = getAuthToken();
-    if (!token) { setLoading(false); return; }
-    fetch(`${API_BASE}/auth/tabs`, { headers: getApiHeaders(token) })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => { if (Array.isArray(data)) setServerFiles(data.map(normalizeTab)); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [open]);
+    if (isLoggedIn) {
+      setLoading(true);
+      const token = getAuthToken();
+      if (!token) { setLoading(false); return; }
+      fetch(`${API_BASE}/auth/tabs`, { headers: getApiHeaders(token) })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => { if (Array.isArray(data)) setServerFiles(data.map(normalizeTab)); })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    } else {
+      setLocalFiles(readSavedFiles());
+    }
+  }, [open, isLoggedIn]);
 
+  // Open any file into tabs (cloud or local — same logic)
   const handleOpen = (file: CodeTab) => {
     const existing = tabs.find(t => t.id === file.id);
     if (existing) {
@@ -764,7 +922,16 @@ function FilesDrawer({ open, onClose, theme, tabs, setTabs, activeTabId, setActi
     onClose();
   };
 
-  const handleDelete = async (file: CodeTab) => {
+  // Open an example file — always creates a fresh tab with a new ID
+  const handleOpenExample = (ex: ExampleFile) => {
+    const id = String(Date.now());
+    setTabs(prev => [...prev, { id, name: ex.name, code: ex.code, isDirty: false }]);
+    setActiveTabId(id);
+    onClose();
+  };
+
+  // Delete a cloud file
+  const handleDeleteCloud = async (file: CodeTab) => {
     const token = getAuthToken();
     if (!token) return;
     setDeletingId(file.id);
@@ -781,17 +948,84 @@ function FilesDrawer({ open, onClose, theme, tabs, setTabs, activeTabId, setActi
     }
   };
 
+  // Delete a saved local file (guests only) — removes from saved_files store and closes tab if open
+  const handleDeleteLocal = (file: CodeTab) => {
+    const updated = localFiles.filter(f => f.id !== file.id);
+    setLocalFiles(updated);
+    writeSavedFiles(updated);
+    removeTabLocally(file.id);
+  };
+
   if (!open) return null;
 
   const openTabIds = new Set(tabs.map(t => t.id));
 
+  // Shared row renderer
+  const renderFileRow = (
+    file: CodeTab,
+    onOpenFile: () => void,
+    onDeleteFile: (() => void) | null,
+    deleteTitle: string,
+  ) => {
+    const isOpen = openTabIds.has(file.id);
+    const isDeleting = deletingId === file.id;
+    return (
+      <div
+        key={file.id}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 12px', borderRadius: 8,
+          border: `1px solid ${isOpen ? theme.linkColor + '55' : theme.border}`,
+          backgroundColor: isOpen ? theme.linkColor + '0d' : 'transparent',
+          opacity: isDeleting ? 0.5 : 1,
+          transition: 'opacity 150ms',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: theme.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {file.name}
+          </div>
+          <div style={{ color: theme.subText, fontSize: 11, marginTop: 1 }}>
+            {isOpen
+              ? <span style={{ color: theme.linkColor }}>● open</span>
+              : `${file.code.split('\n').filter(Boolean).length} lines`}
+          </div>
+        </div>
+        {!isOpen && (
+          <button
+            type="button"
+            onClick={onOpenFile}
+            disabled={isDeleting}
+            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 9px', flexShrink: 0 }}
+          >
+            Open
+          </button>
+        )}
+        {onDeleteFile && (
+          <button
+            type="button"
+            onClick={onDeleteFile}
+            disabled={isDeleting}
+            title={deleteTitle}
+            style={{ background: 'none', border: '1px solid #ef444444', borderRadius: 5, color: '#ef4444', cursor: isDeleting ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 9px', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+          >
+            <TabTrashIcon />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const sectionLabel = (label: string) => (
+    <div style={{ color: theme.subText, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '14px 4px 6px' }}>
+      {label}
+    </div>
+  );
+
   return (
     <>
       {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', zIndex: 200 }}
-      />
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', zIndex: 200 }} />
       {/* Panel */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 300,
@@ -801,12 +1035,7 @@ function FilesDrawer({ open, onClose, theme, tabs, setTabs, activeTabId, setActi
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-          <div>
-            <div style={{ color: theme.text, fontWeight: 700, fontSize: 14 }}>Cloud Files</div>
-            <div style={{ color: theme.subText, fontSize: 11, marginTop: 2 }}>
-              {loading ? 'Loading…' : `${serverFiles.length} file${serverFiles.length !== 1 ? 's' : ''} saved`}
-            </div>
-          </div>
+          <div style={{ color: theme.text, fontWeight: 700, fontSize: 14 }}>Files</div>
           <button
             type="button"
             onClick={onClose}
@@ -815,88 +1044,99 @@ function FilesDrawer({ open, onClose, theme, tabs, setTabs, activeTabId, setActi
           >×</button>
         </div>
 
-        {/* File list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-          {loading ? (
-            <div style={{ color: theme.subText, fontSize: 13, padding: '24px 8px', textAlign: 'center' }}>Loading…</div>
-          ) : serverFiles.length === 0 ? (
-            <div style={{ color: theme.subText, fontSize: 13, padding: '24px 8px', lineHeight: '20px' }}>
-              Nothing saved yet. Hit 💾 Save in the toolbar to sync your tabs here.
-            </div>
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px' }}>
+
+          {/* ── Your Files ─────────────────────────────────────────────── */}
+          {isLoggedIn ? (
+            <>
+              {sectionLabel('Cloud Files')}
+              {loading ? (
+                <div style={{ color: theme.subText, fontSize: 13, padding: '12px 4px', textAlign: 'center' }}>Loading…</div>
+              ) : serverFiles.length === 0 ? (
+                <div style={{ color: theme.subText, fontSize: 13, padding: '8px 4px', lineHeight: '20px' }}>
+                  Nothing saved yet. Hit 💾 Save in the toolbar to sync your tabs here.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {serverFiles.map(file => renderFileRow(
+                    file,
+                    () => handleOpen(file),
+                    () => handleDeleteCloud(file),
+                    'Delete from account',
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {serverFiles.map(file => {
-                const isOpen = openTabIds.has(file.id);
-                const isDeleting = deletingId === file.id;
-                return (
-                  <div
-                    key={file.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '9px 12px', borderRadius: 8,
-                      border: `1px solid ${isOpen ? theme.linkColor + '55' : theme.border}`,
-                      backgroundColor: isOpen ? theme.linkColor + '0d' : 'transparent',
-                      opacity: isDeleting ? 0.5 : 1,
-                      transition: 'opacity 150ms',
-                    }}
-                  >
-                    {/* File info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        color: theme.text, fontSize: 13, fontWeight: 600,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {file.name}
-                      </div>
-                      <div style={{ color: theme.subText, fontSize: 11, marginTop: 1 }}>
-                        {isOpen
-                          ? <span style={{ color: theme.linkColor }}>● open</span>
-                          : `${file.code.split('\n').filter(Boolean).length} lines`}
-                      </div>
-                    </div>
-
-                    {/* Open button — only when not already open */}
-                    {!isOpen && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpen(file)}
-                        disabled={isDeleting}
-                        style={{
-                          background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5,
-                          color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                          padding: '3px 9px', flexShrink: 0,
-                        }}
-                      >
-                        Open
-                      </button>
-                    )}
-
-                    {/* Delete */}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(file)}
-                      disabled={isDeleting}
-                      title="Delete from account"
-                      style={{
-                        background: 'none', border: `1px solid #ef444444`, borderRadius: 5,
-                        color: '#ef4444', cursor: isDeleting ? 'not-allowed' : 'pointer',
-                        fontSize: 11, fontWeight: 600,
-                        padding: '3px 9px', flexShrink: 0, display: 'flex', alignItems: 'center',
-                      }}
-                    >
-                      <TabTrashIcon />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              {sectionLabel('Local Files')}
+              {/* Login nudge */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px', borderRadius: 8, marginBottom: 8,
+                backgroundColor: theme.linkColor + '12',
+                border: `1px solid ${theme.linkColor}33`,
+              }}>
+                <div style={{ flex: 1, color: theme.subText, fontSize: 12, lineHeight: '17px' }}>
+                  <Link to="/login" style={{ color: theme.linkColor, fontWeight: 600, textDecoration: 'none' }} onClick={onClose}>Sign in</Link>
+                  {' '}to save your files to the cloud and access them anywhere.
+                </div>
+              </div>
+              {localFiles.length === 0 ? (
+                <div style={{ color: theme.subText, fontSize: 13, padding: '8px 4px', lineHeight: '20px' }}>
+                  Nothing saved yet. Hit 💾 Save in the toolbar to keep a file here.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {localFiles.map(file => renderFileRow(
+                    file,
+                    () => handleOpen(file),
+                    () => handleDeleteLocal(file),
+                    'Delete from local storage',
+                  ))}
+                </div>
+              )}
+            </>
           )}
+
+          {/* ── Examples ───────────────────────────────────────────────── */}
+          {sectionLabel('Examples')}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {EXAMPLE_FILES.map(ex => (
+              <div
+                key={ex.name}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '9px 12px', borderRadius: 8,
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: theme.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ex.name}
+                  </div>
+                  <div style={{ color: theme.subText, fontSize: 11, marginTop: 1 }}>{ex.description}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenExample(ex)}
+                  style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 9px', flexShrink: 0 }}
+                >
+                  Open
+                </button>
+              </div>
+            ))}
+          </div>
+
         </div>
 
-        {/* Footer hint */}
+        {/* Footer */}
         <div style={{ padding: '12px 18px', borderTop: `1px solid ${theme.border}`, flexShrink: 0 }}>
           <p style={{ color: theme.subText, fontSize: 11, lineHeight: '16px', margin: 0 }}>
-            Closing a tab (×) only removes it from this session — it stays in your account. Delete removes it permanently.
+            {isLoggedIn
+              ? 'Closing a tab (×) removes it from this session only — it stays in your account. Delete removes it permanently.'
+              : 'Files are stored in your browser. Sign in to back them up to the cloud.'}
           </p>
         </div>
       </div>
