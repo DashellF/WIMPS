@@ -104,73 +104,6 @@ const DIRECTIVES: [string, string][] = [
   ['.align n',     'Align next datum to 2ⁿ byte boundary'],
 ];
 
-const EXAMPLE = `# QuadHex — like FizzBuzz, but for 4, 6, and 24
-.data
-str_quad:    .asciiz "Quad"
-str_hex:     .asciiz "Hex"
-str_quadhex: .asciiz "QuadHex"
-str_newline: .asciiz "\\n"
-
-.text
-main:
-    li   $t0, 1          # counter
-    li   $t1, 40         # limit
-
-loop:
-    bgt  $t0, $t1, done
-
-    # divisible by 24?
-    li   $t2, 24
-    div  $t0, $t2
-    mfhi $t3
-    beqz $t3, print_quadhex
-
-    # divisible by 6?
-    li   $t2, 6
-    div  $t0, $t2
-    mfhi $t3
-    beqz $t3, print_hex
-
-    # divisible by 4?
-    li   $t2, 4
-    div  $t0, $t2
-    mfhi $t3
-    beqz $t3, print_quad
-
-    # otherwise: print the number
-    li   $v0, 1
-    move $a0, $t0
-    syscall
-    j    next
-
-print_quadhex:
-    li   $v0, 4
-    la   $a0, str_quadhex
-    syscall
-    j    next
-
-print_hex:
-    li   $v0, 4
-    la   $a0, str_hex
-    syscall
-    j    next
-
-print_quad:
-    li   $v0, 4
-    la   $a0, str_quad
-    syscall
-
-next:
-    li   $v0, 4
-    la   $a0, str_newline
-    syscall
-    addi $t0, $t0, 1
-    j    loop
-
-done:
-    li   $v0, 10
-    syscall`;
-
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -511,30 +444,6 @@ export default function DocsPage() {
           <Accordion title="Assembler directives" theme={theme} badge={`${filteredDirectives.length}`}>
             <MiniTable rows={filteredDirectives.map(([d, desc]) => [d, desc] as [string, string])} headers={['Directive', 'Description']} theme={theme} />
           </Accordion>
-
-          {/* ── Example ──────────────────────────────────────────────────── */}
-          {!q && (
-            <>
-              <SectionDivider label="Example" theme={theme} />
-              <Accordion title="QuadHex — like FizzBuzz, but for 4, 6, and 24" theme={theme}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <Body theme={theme}>
-                    Counts from 1 to 40, swapping multiples of 4 for "Quad", multiples of 6 for "Hex", and multiples of 24 for "QuadHex". Try setting a breakpoint on the loop label and watching <code style={{ fontFamily: 'monospace', fontSize: 12, backgroundColor: `${theme.border}66`, padding: '1px 4px', borderRadius: 3, color: theme.linkColor }}>$t0</code> tick up in the Registers panel.
-                  </Body>
-                  <div style={{ overflowX: 'auto' }}>
-                    <pre style={{
-                      fontFamily: 'monospace', fontSize: 12, lineHeight: '19px',
-                      backgroundColor: `${theme.border}33`, color: theme.consoleText,
-                      borderRadius: 10, padding: 14, margin: 0,
-                    }}>
-                      {EXAMPLE}
-                    </pre>
-                  </div>
-                </div>
-              </Accordion>
-            </>
-          )}
-
         </div>
       </div>
     </div>
