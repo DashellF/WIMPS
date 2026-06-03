@@ -453,4 +453,4 @@ export default function DocsPage() {
       </div>
     </div>
   );
-}3
+}
