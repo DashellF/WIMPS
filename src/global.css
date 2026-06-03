@@ -42,6 +42,30 @@ input, textarea {
   50%       { opacity: 0; }
 }
 
+/* Theme-aware skeleton loaders.
+   Colors come from inline --skeleton-base / --skeleton-highlight vars set per theme. */
+.skeleton {
+  background-color: var(--skeleton-base, #e2e8f0);
+  background-image: linear-gradient(
+    90deg,
+    var(--skeleton-base, #e2e8f0) 0%,
+    var(--skeleton-highlight, #f1f5f9) 50%,
+    var(--skeleton-base, #e2e8f0) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
 /* MIPS code editor */
 .mips-editor-textarea {
   color: transparent !important;

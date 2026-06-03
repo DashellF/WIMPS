@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { HomeSkeleton } from '../components/PageSkeletons';
+import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
@@ -48,7 +50,7 @@ const ACTIVE_LINE = 4;
 
 export default function HomePage() {
   const { theme } = useTheme();
-
+  const ready = usePageReady();
 
   const [isLoggedIn] = useState(() => !!getAuthToken());
 
@@ -57,6 +59,7 @@ export default function HomePage() {
     window.location.href = '/login';
   };
 
+  if (!ready) return <HomeSkeleton theme={theme} />;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: theme.bg }}>

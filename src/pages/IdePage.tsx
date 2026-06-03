@@ -4,7 +4,9 @@ import { BitmapDisplay } from '../components/BitmapDisplay';
 import { CodeEditor } from '../components/CodeEditor';
 import { InstructionStats } from '../components/InstructionStats';
 import { MemoryView } from '../components/MemoryView';
+import { FileRowSkeleton, IdeSkeleton } from '../components/PageSkeletons';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
+import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStorage';
@@ -217,6 +219,7 @@ function writeSavedFiles(files: CodeTab[]) {
 // ---------------------------------------------------------------------------
 export default function IdePage() {
   const { theme } = useTheme();
+  const ready = usePageReady();
 
   const [tabs, setTabs] = useState<CodeTab[]>(() => readLocalState().tabs);
   const [activeTabId, setActiveTabId] = useState<string>(() => readLocalState().activeTabId);
@@ -567,6 +570,8 @@ export default function IdePage() {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+  if (!ready) return <IdeSkeleton theme={theme} />;
+
   return (
     <div style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
@@ -1166,7 +1171,7 @@ function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTa
             <>
               {sectionLabel('Cloud Files')}
               {loading ? (
-                <div style={{ color: theme.subText, fontSize: 13, padding: '12px 4px', textAlign: 'center' }}>Loading…</div>
+                <FileRowSkeleton theme={theme} count={3} />
               ) : serverFiles.length === 0 ? (
                 <div style={{ color: theme.subText, fontSize: 13, padding: '8px 4px', lineHeight: '20px' }}>
                   Nothing saved yet. Hit 💾 Save in the toolbar to sync your tabs here.

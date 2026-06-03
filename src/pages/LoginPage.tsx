@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AuthSkeleton } from '../components/PageSkeletons';
+import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { saveAuthToken } from '../helpers/authStorage';
@@ -8,6 +10,7 @@ const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
 export default function LoginPage() {
   const { theme } = useTheme();
+  const ready = usePageReady();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +38,8 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (!ready) return <AuthSkeleton theme={theme} fields={2} />;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: theme.bg, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
