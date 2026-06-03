@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { DocsSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
@@ -260,6 +260,7 @@ const TYPE_COLOR: Record<string, string> = { R: '#3b82f6', I: '#f59e0b', J: '#10
 export default function DocsPage() {
   const { theme } = useTheme();
   const ready = usePageReady();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [isLoggedIn] = useState(() => !!getAuthToken());
 
@@ -279,7 +280,7 @@ export default function DocsPage() {
 
   const handleLogout = () => {
     clearAuthToken();
-    window.location.href = '/login';
+    navigate('/login');
   };
 
   if (!ready) return <DocsSkeleton theme={theme} />;

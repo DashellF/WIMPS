@@ -6,8 +6,8 @@
     <script>
       // Redirect unknown paths to index.html, encoding the path as a query
       // parameter so the SPA can restore it on load.
-      // pathSegmentsToKeep = 1 matches the /WIMPS/ base path.
-      var pathSegmentsToKeep = 1;
+      // pathSegmentsToKeep = 0 for a custom domain at root (no subdirectory).
+      var pathSegmentsToKeep = 0;
       var l = window.location;
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
