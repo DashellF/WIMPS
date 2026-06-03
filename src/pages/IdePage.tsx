@@ -375,15 +375,23 @@ export default function IdePage() {
     const token = getAuthToken();
     if (!token) return;
     try {
+      // Fetch current server state first so closed-but-saved files are preserved
+      const getRes = await fetch(`${API_BASE}/auth/tabs`, { headers: getApiHeaders(token) });
+      if (getRes.status === 401) { clearAuthToken(); setIsLoggedIn(false); setOutput('Session expired. Please log in again.'); return; }
+      const serverTabs: CodeTab[] = getRes.ok ? ((await getRes.json()) as CodeTab[]).map(normalizeTab) : [];
+
       const clean = tabsRef.current.map(t => ({ ...t, isDirty: false }));
-      const res = await fetch(`${API_BASE}/auth/tabs`, {
+      const openIds = new Set(clean.map(t => t.id));
+      const merged = [...serverTabs.filter(t => !openIds.has(t.id)), ...clean];
+
+      const postRes = await fetch(`${API_BASE}/auth/tabs`, {
         method: 'POST',
         headers: getApiHeaders(token, true),
-        body: JSON.stringify({ tabs: clean }),
+        body: JSON.stringify({ tabs: merged }),
       });
-      if (res.status === 401) { clearAuthToken(); setIsLoggedIn(false); setOutput('Session expired. Please log in again.'); return; }
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
+      if (postRes.status === 401) { clearAuthToken(); setIsLoggedIn(false); setOutput('Session expired. Please log in again.'); return; }
+      if (!postRes.ok) {
+        const data = await postRes.json().catch(() => null);
         setOutput(data?.error || 'Save failed. Check your connection.');
         return;
       }
@@ -396,7 +404,10 @@ export default function IdePage() {
 
   const handleSaveLocal = () => {
     const clean = tabsRef.current.map(t => ({ ...t, isDirty: false }));
-    writeSavedFiles(clean);
+    const existing = readSavedFiles();
+    const openIds = new Set(clean.map(t => t.id));
+    const merged = [...existing.filter(f => !openIds.has(f.id)), ...clean];
+    writeSavedFiles(merged);
     setTabs(clean);
     setOutput('Saved to browser.');
   };
