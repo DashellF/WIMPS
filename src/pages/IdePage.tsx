@@ -130,37 +130,86 @@ done:
     syscall`,
   },
   {
-    name: 'fibonacci.asm',
-    description: 'First 10 Fibonacci numbers (iterative)',
+    name: 'smile.asm',
+    description: 'Smiley face — open the Bitmap tab (64×64, scale 4)',
     code:
-`# Print the first 10 Fibonacci numbers
-.data
-sep: .asciiz "\\n"
-
+`# smile.asm — smiley face drawn pixel by pixel
+# Open the Bitmap tab, set 64x64 at scale 4, then run.
+# Pixel format: 0x00RRGGBB stored at base + (y*64 + x)*4
 .text
 main:
-    li   $t0, 0        # a
-    li   $t1, 1        # b
-    li   $t2, 10       # count
+    li   $s0, 0x10010000   # bitmap base address
 
-loop:
-    beqz $t2, done
+    li   $t0, 0            # y = 0
+yloop:
+    li   $t1, 0            # x = 0
+xloop:
+    # Squared distance from face center (32, 32)
+    addi $t2, $t0, -32
+    addi $t3, $t1, -32
+    mul  $t4, $t2, $t2     # dy^2
+    mul  $t5, $t3, $t3     # dx^2
+    add  $t6, $t4, $t5     # face r^2
 
-    li   $v0, 1
-    move $a0, $t0
-    syscall
+    # Default: steel-blue background
+    li   $s1, 0x006699CC
+    li   $t9, 576          # 24^2 — face outer edge
+    bgt  $t6, $t9, write
 
-    li   $v0, 4
-    la   $a0, sep
-    syscall
+    # Dark outline ring: 22^2 < r^2 <= 24^2
+    li   $s1, 0x00222222
+    li   $t9, 484          # 22^2
+    bgt  $t6, $t9, write
 
-    add  $t3, $t0, $t1
-    move $t0, $t1
-    move $t1, $t3
-    addi $t2, $t2, -1
-    j    loop
+    # Yellow face fill
+    li   $s1, 0x00FFD700
 
-done:
+    # Left eye: center (24, 24), radius 4
+    addi $t2, $t0, -24
+    addi $t3, $t1, -24
+    mul  $t4, $t2, $t2
+    mul  $t5, $t3, $t3
+    add  $t7, $t4, $t5
+    li   $t9, 16
+    ble  $t7, $t9, feature
+
+    # Right eye: center (40, 24), radius 4
+    addi $t2, $t0, -24
+    addi $t3, $t1, -40
+    mul  $t4, $t2, $t2
+    mul  $t5, $t3, $t3
+    add  $t7, $t4, $t5
+    ble  $t7, $t9, feature
+
+    # Smile arc: center (32, 36), ring r=10..13, lower arc only
+    addi $t2, $t0, -36
+    addi $t3, $t1, -32
+    mul  $t4, $t2, $t2
+    mul  $t5, $t3, $t3
+    add  $t7, $t4, $t5
+    blt  $t0, 36, write
+    li   $t9, 100
+    blt  $t7, $t9, write
+    li   $t9, 169
+    bgt  $t7, $t9, write
+feature:
+    li   $s1, 0x00222222
+
+write:
+    sll  $t2, $t0, 6       # y * 64
+    add  $t2, $t2, $t1     # + x
+    sll  $t2, $t2, 2       # * 4
+    add  $t2, $t2, $s0     # + base
+    sw   $s1, 0($t2)
+
+    addi $t1, $t1, 1
+    slti $t9, $t1, 64
+    bnez $t9, xloop
+
+    addi $t0, $t0, 1
+    slti $t9, $t0, 64
+    bnez $t9, yloop
+
     li   $v0, 10
     syscall`,
   },

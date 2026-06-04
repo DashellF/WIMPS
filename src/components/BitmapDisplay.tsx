@@ -146,12 +146,12 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
       </div>
 
       {/* ── Canvas area ── */}
-      <div style={{
-        flex: 1, minHeight: 0, overflow: 'auto',
-        padding: 14, display: 'flex',
-        alignItems: 'flex-start', justifyContent: 'flex-start',
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/*
+        Block (not flex) container so overflow:auto reliably shows scrollbars.
+        inline-flex inner wrapper sizes to canvas content, never flex-shrinks to 0.
+      */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 14 }}>
+        <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
           {/* Info strip */}
           <div style={{ display: 'flex', gap: 16 }}>
             {[
@@ -166,14 +166,13 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
             ))}
           </div>
 
-          {/* Canvas */}
+          {/* Canvas — sized exactly to width×scale by height×scale; card matches it */}
           <div style={{
             border: `1px solid ${theme.border}`,
             borderRadius: 6,
             overflow: 'hidden',
             boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
-            flexShrink: 0,
-            display: 'inline-block',
+            lineHeight: 0,
           }}>
             <canvas
               ref={canvasRef}
