@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { BitmapDisplay } from '../components/BitmapDisplay';
 import { CodeEditor } from '../components/CodeEditor';
 import { InstructionStats } from '../components/InstructionStats';
+import { Logo } from '../components/Logo';
 import { MemoryView } from '../components/MemoryView';
 import { FileRowSkeleton, IdeSkeleton } from '../components/PageSkeletons';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
@@ -655,7 +656,7 @@ export default function IdePage() {
           overflow: 'hidden',
         }}>
           {/* Logo */}
-          <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}>WIMPS</Link>
+          <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}><Logo size={20} /></Link>
 
           {/* Tabs — scrollable, capped width */}
           <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
@@ -835,7 +836,7 @@ export default function IdePage() {
             padding: '0 14px',
             gap: 10,
           }}>
-            <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}>WIMPS</Link>
+            <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={22} /></Link>
             <div style={{ flex: 1 }} />
             <ThemeSwitch />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>

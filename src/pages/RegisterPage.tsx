@@ -4,6 +4,7 @@ import { AuthSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
+import { Logo } from '../components/Logo';
 import { migrateGuestFiles, saveAuthToken } from '../helpers/authStorage';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
@@ -57,7 +58,7 @@ export default function RegisterPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: theme.bg, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: `1px solid ${theme.border}` }}>
-        <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 700, fontSize: 18 }}>WIMPS</Link>
+        <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 700, fontSize: 18 }}><Logo size={22} /></Link>
         <ThemeSwitch />
       </nav>
 
