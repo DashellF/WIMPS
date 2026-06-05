@@ -286,7 +286,6 @@ export default function IdePage() {
   const [canStepBack, setCanStepBack] = useState(false);
   const [showHex, setShowHex] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!getAuthToken());
-  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [closedFileNames, setClosedFileNames] = useState<Set<string>>(new Set());
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
@@ -621,8 +620,6 @@ export default function IdePage() {
     { label: 'Step Back', symbol: '←',  onPress: handleStepBack, disabled: !canStepBack },
     { label: 'Step',      symbol: '→',  onPress: handleStep },
     { label: 'Reset',     symbol: '↺',  onPress: handleReset },
-    { label: 'Upload',    symbol: '↑',  onPress: handleUpload },
-    { label: 'Download',  symbol: '↓',  onPress: handleDownload },
     { label: 'Save', symbol: '💾', onPress: isLoggedIn ? handleSave : handleSaveLocal },
   ];
 
@@ -684,7 +681,6 @@ export default function IdePage() {
             >
               <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
                 {tabs.map(tab => {
-                  const isHovered = hoveredTabId === tab.id;
                   return (
                     <div
                       key={tab.id}
@@ -693,8 +689,6 @@ export default function IdePage() {
                       aria-selected={tab.id === activeTabId}
                       onClick={() => setActiveTabId(tab.id)}
                       onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
-                      onMouseEnter={() => setHoveredTabId(tab.id)}
-                      onMouseLeave={() => setHoveredTabId(null)}
                       className="ide-tab"
                       style={{
                         display: 'flex',
@@ -738,27 +732,6 @@ export default function IdePage() {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
                         >
                           ×
-                        </button>
-                      )}
-                      {isLoggedIn && isHovered && (
-                        <button
-                          type="button"
-                          onClick={e => handleDeleteTab(tab, e)}
-                          aria-label={`Delete ${tab.name} from account`}
-                          title="Delete from account"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: '#ef4444',
-                            padding: 2,
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            borderRadius: 3,
-                          }}
-                        >
-                          <TabTrashIcon />
                         </button>
                       )}
                     </div>
@@ -1050,6 +1023,8 @@ export default function IdePage() {
         setActiveTabId={setActiveTabId}
         removeTabLocally={removeTabLocally}
         onFilesLoaded={setClosedFileNames}
+        onUpload={handleUpload}
+        onDownload={handleDownload}
       />
     </div>
   );
@@ -1084,9 +1059,11 @@ interface FilesDrawerProps {
   setActiveTabId: (id: string) => void;
   removeTabLocally: (tabId: string) => void;
   onFilesLoaded: (names: Set<string>) => void;
+  onUpload: () => void;
+  onDownload: () => void;
 }
 
-function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally, onFilesLoaded }: FilesDrawerProps) {
+function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally, onFilesLoaded, onUpload, onDownload }: FilesDrawerProps) {
   const [serverFiles, setServerFiles] = useState<CodeTab[]>([]);
   const [localFiles, setLocalFiles] = useState<CodeTab[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1248,13 +1225,28 @@ function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTa
         boxShadow: '-12px 0 40px rgba(0,0,0,0.25)',
       }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-          <div style={{ color: theme.text, fontWeight: 700, fontSize: 14 }}>Files</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px 0 18px', height: 48, borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
+          <div style={{ color: theme.text, fontWeight: 700, fontSize: 14, flex: 1 }}>Files</div>
+          <button
+            type="button"
+            onClick={onUpload}
+            title="Import file from disk"
+            aria-label="Import file from disk"
+            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, width: 30, height: 28, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >↑</button>
+          <button
+            type="button"
+            onClick={onDownload}
+            title="Download active file"
+            aria-label="Download active file"
+            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, width: 30, height: 28, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >↓</button>
+          <div style={{ width: 1, height: 16, backgroundColor: theme.border, flexShrink: 0, margin: '0 2px' }} />
           <button
             type="button"
             onClick={onClose}
             aria-label="Close file manager"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 20, lineHeight: 1, padding: 4, borderRadius: 4 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 20, lineHeight: 1, width: 30, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, flexShrink: 0 }}
           >×</button>
         </div>
 
