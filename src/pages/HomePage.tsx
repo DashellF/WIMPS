@@ -151,7 +151,7 @@ export default function HomePage() {
         {/* Secondary text links */}
         <div style={{ display: 'flex', gap: 28, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
           <a
-            href="https://github.com/DashellF/WIMPS"
+            href="https://github.com/WIMPS-dev/WIMPS"
             target="_blank"
             rel="noreferrer"
             className="home-link-muted"
