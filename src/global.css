@@ -81,6 +81,10 @@ input, textarea {
   opacity: 1;
 }
 
+.mips-editor-textarea:focus {
+  outline: none;
+}
+
 .mips-editor-highlight {
   color: inherit !important;
   pointer-events: none;

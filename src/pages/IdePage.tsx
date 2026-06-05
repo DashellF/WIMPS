@@ -10,7 +10,7 @@ import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
-import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStorage';
+import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
 import type { InstrStats } from '../simulator/useMips';
 import { assemble, continueSim, feedInput, getInstructionStats, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
 
@@ -288,6 +288,7 @@ export default function IdePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!getAuthToken());
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
+  const [closedFileNames, setClosedFileNames] = useState<Set<string>>(new Set());
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
 
   const [rightTab, setRightTab] = useState<RightTab>('registers');
@@ -464,7 +465,11 @@ export default function IdePage() {
 
   const handleLogout = () => {
     clearAuthToken();
+    localStorage.removeItem('saved_tabs');
+    localStorage.removeItem('saved_files');
     setIsLoggedIn(false);
+    setTabs(DEFAULT_TABS);
+    setActiveTabId(DEFAULT_TABS[0].id);
   };
 
   // Shared helper: removes a tab from local state and fixes the active tab.
@@ -502,7 +507,9 @@ export default function IdePage() {
 
   const addTab = () => {
     const id = String(Date.now());
-    const n = tabs.length + 1;
+    const existingNames = new Set(tabs.map(t => t.name));
+    let n = 1;
+    while (existingNames.has(`file${n}.asm`)) n++;
     const newTab: CodeTab = { id, name: `file${n}.asm`, code: '', isDirty: false };
     setTabs(prev => [...prev, newTab]);
     setActiveTabId(id);
@@ -525,8 +532,13 @@ export default function IdePage() {
 
   const commitRename = () => {
     if (!editingTabId) return;
-    const name = editTabName.trim() || 'untitled.asm';
-    setTabs(prev => prev.map(t => t.id === editingTabId ? { ...t, name } : t));
+    const raw = editTabName.trim() || 'untitled.asm';
+    setTabs(prev => {
+      const otherTabNames = new Set(prev.filter(t => t.id !== editingTabId).map(t => t.name));
+      const allNames = new Set([...otherTabNames, ...closedFileNames]);
+      const name = uniquifyName(raw, allNames);
+      return prev.map(t => t.id === editingTabId ? { ...t, name } : t);
+    });
     setEditingTabId(null);
   };
 
@@ -541,7 +553,11 @@ export default function IdePage() {
       reader.onload = () => {
         const text = reader.result as string;
         const id = String(Date.now());
-        setTabs(prev => [...prev, { id, name: file.name, code: text, isDirty: false }]);
+        setTabs(prev => {
+          const allNames = new Set([...prev.map(t => t.name), ...closedFileNames]);
+          const name = uniquifyName(file.name, allNames);
+          return [...prev, { id, name, code: text, isDirty: false }];
+        });
         setActiveTabId(id);
       };
       reader.readAsText(file);
@@ -1033,6 +1049,7 @@ export default function IdePage() {
         activeTabId={activeTabId}
         setActiveTabId={setActiveTabId}
         removeTabLocally={removeTabLocally}
+        onFilesLoaded={setClosedFileNames}
       />
     </div>
   );
@@ -1066,9 +1083,10 @@ interface FilesDrawerProps {
   activeTabId: string;
   setActiveTabId: (id: string) => void;
   removeTabLocally: (tabId: string) => void;
+  onFilesLoaded: (names: Set<string>) => void;
 }
 
-function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally }: FilesDrawerProps) {
+function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally, onFilesLoaded }: FilesDrawerProps) {
   const [serverFiles, setServerFiles] = useState<CodeTab[]>([]);
   const [localFiles, setLocalFiles] = useState<CodeTab[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1082,11 +1100,19 @@ function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTa
       if (!token) { setLoading(false); return; }
       fetch(`${API_BASE}/auth/tabs`, { headers: getApiHeaders(token) })
         .then(r => r.ok ? r.json() : [])
-        .then(data => { if (Array.isArray(data)) setServerFiles(data.map(normalizeTab)); })
+        .then(data => {
+          if (Array.isArray(data)) {
+            const files = data.map(normalizeTab);
+            setServerFiles(files);
+            onFilesLoaded(new Set(files.map((f: CodeTab) => f.name)));
+          }
+        })
         .catch(() => {})
         .finally(() => setLoading(false));
     } else {
-      setLocalFiles(readSavedFiles());
+      const files = readSavedFiles();
+      setLocalFiles(files);
+      onFilesLoaded(new Set(files.map(f => f.name)));
     }
   }, [open, isLoggedIn]);
 
@@ -1105,7 +1131,15 @@ function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTa
   // Open an example file — always creates a fresh tab with a new ID
   const handleOpenExample = (ex: ExampleFile) => {
     const id = String(Date.now());
-    setTabs(prev => [...prev, { id, name: ex.name, code: ex.code, isDirty: false }]);
+    setTabs(prev => {
+      const allNames = new Set([
+        ...prev.map(t => t.name),
+        ...serverFiles.map(f => f.name),
+        ...localFiles.map(f => f.name),
+      ]);
+      const name = uniquifyName(ex.name, allNames);
+      return [...prev, { id, name, code: ex.code, isDirty: false }];
+    });
     setActiveTabId(id);
     onClose();
   };
