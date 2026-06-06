@@ -284,6 +284,8 @@ export default function IdePage() {
   const [isAssembled, setIsAssembled] = useState(false);
   const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
   const [canStepBack, setCanStepBack] = useState(false);
+  const [isTerminated, setIsTerminated] = useState(false);
+  const [errorLines, setErrorLines] = useState<{ line: number; message: string }[]>([]);
   const [showHex, setShowHex] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!getAuthToken());
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
@@ -315,10 +317,11 @@ export default function IdePage() {
   const setActiveCode = useCallback((code: string) => {
     setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code, isDirty: true } : t));
     setIsAssembled(false);
+    setErrorLines([]);
   }, [activeTabId]);
 
-  // Reset assembled state when switching tabs
-  useEffect(() => { setIsAssembled(false); }, [activeTabId]);
+  // Reset assembled state and error markers when switching tabs
+  useEffect(() => { setIsAssembled(false); setErrorLines([]); }, [activeTabId]);
 
   // Load tabs from server on mount (logged-in users only).
   // Always apply the server response — never let stale localStorage bleed through.
@@ -354,6 +357,7 @@ export default function IdePage() {
     setActiveLine(state.lineNumber);
     setIsWaiting(state.isWaiting);
     setCanStepBack(state.canUndo);
+    setIsTerminated(state.terminated);
     setMemoryData(getMemoryRange(DATA_START, DATA_WORDS));
     setInstrStats(getInstructionStats());
     setSimTick(t => t + 1);
@@ -367,8 +371,10 @@ export default function IdePage() {
     if (!result.ok) {
       setOutput(`Assembly failed:\n${result.error}`);
       setIsAssembled(false);
+      setErrorLines(result.errors.filter(e => !e.isWarning).map(e => ({ line: e.lineNumber, message: e.message })));
     } else {
       setIsAssembled(true);
+      setErrorLines([]);
       applyState(getState());
     }
   };
@@ -402,6 +408,7 @@ export default function IdePage() {
     setIsWaiting(false);
     setIsAssembled(false);
     setCanStepBack(false);
+    setIsTerminated(false);
     setInstrStats(null);
     setSimTick(t => t + 1);
   };
@@ -798,7 +805,7 @@ export default function IdePage() {
             {/* Action buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 6px', height: 34 }}>
               {actions.map(a => {
-                const isBlue = isAssembled
+                const isBlue = (isAssembled && !isTerminated)
                   ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
                   : a.label === 'Assemble';
                 const isDisabled = Boolean(a.disabled);
@@ -976,7 +983,7 @@ export default function IdePage() {
           {/* Left column: editor + console */}
           <div className="editor-column" style={{ width: `${leftPct}%`, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} />
+              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} />
             </div>
 
             {vDragHandle}

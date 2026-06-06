@@ -1,5 +1,5 @@
 import { highlightMipsCode } from '@/helpers/mipsSyntax';
-import React from 'react';
+import React, { useMemo } from 'react';
 import Editor from 'react-simple-code-editor';
 import type { Theme } from '../theme/themes';
 
@@ -12,10 +12,17 @@ interface CodeEditorProps {
   activeLine: number | null;
   breakpoints: Set<number>;
   onBreakpointToggle: (line: number) => void;
+  errorLines?: { line: number; message: string }[];
 }
 
-export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBreakpointToggle }: CodeEditorProps) {
+export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBreakpointToggle, errorLines = [] }: CodeEditorProps) {
   const lines = code.split('\n');
+
+  const errorMap = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const e of errorLines) m.set(e.line, e.message);
+    return m;
+  }, [errorLines]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -73,22 +80,26 @@ export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBr
             const lineNumber = i + 1;
             const isActive = activeLine === lineNumber;
             const hasBp = breakpoints.has(lineNumber);
+            const errorMsg = errorMap.get(lineNumber);
+            const hasError = errorMsg !== undefined;
             return (
               <div
                 key={i}
                 className="gutter-line"
                 onClick={() => onBreakpointToggle(lineNumber)}
-                title={hasBp ? 'Remove breakpoint' : 'Add breakpoint'}
+                title={hasError ? errorMsg : (hasBp ? 'Remove breakpoint' : 'Add breakpoint')}
+                aria-label={hasError ? `Line ${lineNumber}: ${errorMsg}` : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'flex-end',
                   gap: 4,
-                  paddingLeft: 4,
+                  paddingLeft: 1,
                   paddingRight: 8,
                   height: 22,
                   cursor: 'pointer',
                   backgroundColor: isActive ? '#2563eb55' : 'transparent',
+                  borderLeft: hasError ? '3px solid #ef4444' : '3px solid transparent',
                 }}
               >
                 {/* Breakpoint dot / hover hint */}
@@ -105,11 +116,11 @@ export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBr
                 />
                 {/* Line number */}
                 <span style={{
-                  color: isActive ? theme.text : (hasBp ? '#ef4444' : theme.subText),
+                  color: isActive ? theme.text : (hasBp || hasError ? '#ef4444' : theme.subText),
                   fontSize: 12,
                   fontFamily: 'monospace',
                   lineHeight: '22px',
-                  fontWeight: isActive || hasBp ? 700 : 400,
+                  fontWeight: isActive || hasBp || hasError ? 700 : 400,
                   minWidth: 20,
                   textAlign: 'right',
                 }}>
@@ -134,6 +145,21 @@ export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBr
               />
             ))}
           </div>
+
+          {/* Error underline overlay */}
+          {errorMap.size > 0 && (
+            <div style={{ position: 'absolute', top: 16, left: 0, right: 0, pointerEvents: 'none', zIndex: 1 }}>
+              {lines.map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: 22,
+                    borderBottom: errorMap.has(i + 1) ? '2px solid #ef4444' : 'none',
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           <Editor
             value={code}

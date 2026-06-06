@@ -269,11 +269,11 @@ export function assemble(src: string) {
   instance = makeMipsfromSource(source);
   instance.setUndoSize(UNDO_SIZE);
   const result = instance.assemble();
-  if (result.hasErrors) return { ok: false, error: result.report };
+  if (result.hasErrors) return { ok: false as const, error: result.report, errors: result.errors };
 
   instance.initialize(true);
   registerHandlers(instance);
-  return { ok: true };
+  return { ok: true as const };
 }
 
 export function getState(): SimulatorState {
