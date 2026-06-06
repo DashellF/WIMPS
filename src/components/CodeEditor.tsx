@@ -18,6 +18,10 @@ export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBr
   const lines = code.split('\n');
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      return;
+    }
     if (e.key === 'Tab') {
       e.preventDefault();
       const target = e.currentTarget;

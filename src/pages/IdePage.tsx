@@ -487,6 +487,47 @@ export default function IdePage() {
     });
   }, [activeTabId]);
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const metaOrCtrl = e.ctrlKey || e.metaKey;
+      const inInput = target.tagName === 'INPUT' || target.tagName === 'SELECT';
+
+      // Ctrl/Cmd+S — save from anywhere (including editor)
+      if (metaOrCtrl && e.key === 's') {
+        e.preventDefault();
+        if (isLoggedIn) handleSave();
+        else handleSaveLocal();
+        return;
+      }
+
+      // Ctrl/Cmd+Enter — assemble from anywhere (including editor)
+      if (metaOrCtrl && e.key === 'Enter') {
+        e.preventDefault();
+        if (!isWaiting) handleAssemble();
+        return;
+      }
+
+      // F-keys and Escape: skip when a plain input field has focus or when
+      // the simulator is waiting for console input (user is typing into console)
+      if (inInput || isWaiting) return;
+
+      switch (e.key) {
+        case 'F5':  e.preventDefault(); handleRun(); break;
+        case 'F8':  e.preventDefault(); handleContinue(); break;
+        case 'F9':  e.preventDefault(); if (canStepBack) handleStepBack(); break;
+        case 'F10': e.preventDefault(); handleStep(); break;
+        case 'Escape': handleReset(); break;
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isLoggedIn, canStepBack, isWaiting,
+      handleAssemble, handleRun, handleContinue, handleStep, handleStepBack, handleReset,
+      handleSave, handleSaveLocal]);
+
   const handleDeleteTab = async (tab: CodeTab, e: React.MouseEvent) => {
     e.stopPropagation();
     const token = getAuthToken();

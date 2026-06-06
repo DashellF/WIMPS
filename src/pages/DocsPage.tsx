@@ -188,6 +188,42 @@ function Body({ children, theme }: { children: React.ReactNode; theme: Theme }) 
   );
 }
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = isMac ? '⌘' : 'Ctrl';
+
+const SHORTCUTS: [string[], string][] = [
+  [[`${MOD}+Enter`],          'Assemble — works from the editor without inserting a newline'],
+  [[`${MOD}+S`],              'Save — syncs to your account when signed in, otherwise to the browser'],
+  [['F5'],                    'Run — restart from the top'],
+  [['F8'],                    'Continue — resume past the current breakpoint'],
+  [['F9'],                    'Step Back — only active while step history exists'],
+  [['F10'],                   'Step — execute one instruction'],
+  [['Esc'],                   'Reset — clear execution state and output'],
+];
+
+function ShortcutTable({ theme }: { theme: Theme }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
+      {SHORTCUTS.map(([keys, desc]) => (
+        <div key={keys[0]} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${theme.border}22` }}>
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0, minWidth: 130 }}>
+            {keys.map(k => (
+              <span key={k} style={{
+                fontFamily: 'monospace', fontSize: 12, fontWeight: 700,
+                backgroundColor: theme.bg, color: theme.text,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 5, padding: '2px 7px',
+                boxShadow: `0 1px 0 ${theme.border}`,
+              }}>{k}</span>
+            ))}
+          </div>
+          <span style={{ fontSize: 13, color: theme.subText }}>{desc}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Toolbar button legend
 function ButtonLegend({ theme }: { theme: Theme }) {
   const items: [string, string, string][] = [
@@ -353,6 +389,10 @@ export default function DocsPage() {
                     <ButtonLegend theme={theme} />
                   </div>
                 </div>
+              </Accordion>
+
+              <Accordion title="Keyboard shortcuts" theme={theme}>
+                <ShortcutTable theme={theme} />
               </Accordion>
 
               <Accordion title="Breakpoint debugging" theme={theme}>
