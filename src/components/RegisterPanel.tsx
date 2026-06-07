@@ -30,25 +30,27 @@ export function RegisterPanel({ registers, theme, showHex = true, toggleFormat }
 
   return (
     <div style={{ flex: 1, minHeight: 0, backgroundColor: theme.bg, padding: 10, display: 'flex', flexDirection: 'column' }}>
-      {/* Header — columns mirror data rows: flex:1.2 | width:30 | flex:1.4 */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px', paddingBottom: 6 }}>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Filter registers..."
-          aria-label="Filter registers"
-          style={{
-            flex: 1.2,
-            backgroundColor: theme.card,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 6,
-            padding: '4px 10px',
-            fontSize: 12,
-            color: theme.text,
-            outline: 'none',
-            minWidth: 0,
-          }}
-        />
+      {/* Header — paddingRight:18 compensates for the table's 1px border so flex proportions match data rows */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 18px 6px 10px' }}>
+        <div style={{ flex: 1.2, minWidth: 0 }}>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Filter registers..."
+            aria-label="Filter registers"
+            style={{
+              width: 'calc(100% - 8px)',
+              boxSizing: 'border-box',
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 6,
+              padding: '4px 10px',
+              fontSize: 12,
+              color: theme.text,
+              outline: 'none',
+            }}
+          />
+        </div>
         <span style={{ width: 30, flexShrink: 0, textAlign: 'center', color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>#</span>
         <div style={{ flex: 1.4, display: 'flex', justifyContent: 'flex-end' }}>
           <button
