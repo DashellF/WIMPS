@@ -7,105 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Logo } from '../components/Logo';
 import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
 import type { Theme } from '../theme/themes';
-
-// ---------------------------------------------------------------------------
-// Data
-// ---------------------------------------------------------------------------
-const SYSCALLS: [string, string, string][] = [
-  ['1',  '$v0=1, $a0=int',       'Print integer'],
-  ['2',  '$v0=2, $f12=float',    'Print float'],
-  ['3',  '$v0=3, $f12=double',   'Print double'],
-  ['4',  '$v0=4, $a0=addr',      'Print null-terminated string'],
-  ['5',  '$v0=5 → $v0=int',      'Read integer from console'],
-  ['6',  '$v0=6 → $f0=float',    'Read float from console'],
-  ['7',  '$v0=7 → $f0=double',   'Read double from console'],
-  ['8',  '$v0=8 → string',       'Read string from console'],
-  ['10', '$v0=10',               'Exit program'],
-  ['11', '$v0=11, $a0=char',     'Print character'],
-  ['12', '$v0=12 → $v0=char',    'Read character from console'],
-];
-
-const REGISTERS: [string, string, string][] = [
-  ['$zero / $0', '0',          'Always zero. Writes are discarded.'],
-  ['$at / $1',   'Assembler',  'Reserved for assembler'],
-  ['$v0–$v1',    '2–3',        'Function return values / syscall code'],
-  ['$a0–$a3',    '4–7',        'Function arguments'],
-  ['$t0–$t9',    '8–15,24–25', 'Temporaries; caller-saved'],
-  ['$s0–$s7',    '16–23',      'Saved temporaries; callee-saved'],
-  ['$k0–$k1',    '26–27',      'Reserved for OS kernel'],
-  ['$gp',        '28',         'Global pointer'],
-  ['$sp',        '29',         'Stack pointer'],
-  ['$fp',        '30',         'Frame pointer'],
-  ['$ra',        '31',         'Return address'],
-];
-
-const INSTRUCTIONS: [string, string, string][] = [
-  ['add $d,$s,$t',   'R',  'Signed addition; traps on overflow'],
-  ['addu $d,$s,$t',  'R',  'Unsigned addition; no overflow trap'],
-  ['addi $t,$s,imm', 'I',  'Add sign-extended immediate'],
-  ['addiu $t,$s,imm','I',  'Add immediate, unsigned'],
-  ['sub $d,$s,$t',   'R',  'Signed subtract'],
-  ['subu $d,$s,$t',  'R',  'Unsigned subtract'],
-  ['mul $d,$s,$t',   'R',  'Multiply, result to $d (pseudo)'],
-  ['mult $s,$t',     'R',  'Signed multiply → HI:LO'],
-  ['multu $s,$t',    'R',  'Unsigned multiply → HI:LO'],
-  ['div $s,$t',      'R',  'Signed divide; quotient→LO, rem→HI'],
-  ['divu $s,$t',     'R',  'Unsigned divide'],
-  ['mfhi $d',        'R',  'Move HI to register'],
-  ['mflo $d',        'R',  'Move LO to register'],
-  ['and $d,$s,$t',   'R',  'Bitwise AND'],
-  ['andi $t,$s,imm', 'I',  'Bitwise AND with zero-extended imm'],
-  ['or $d,$s,$t',    'R',  'Bitwise OR'],
-  ['ori $t,$s,imm',  'I',  'Bitwise OR with zero-extended imm'],
-  ['xor $d,$s,$t',   'R',  'Bitwise XOR'],
-  ['nor $d,$s,$t',   'R',  'Bitwise NOR'],
-  ['sll $d,$t,sa',   'R',  'Shift left logical'],
-  ['srl $d,$t,sa',   'R',  'Shift right logical'],
-  ['sra $d,$t,sa',   'R',  'Shift right arithmetic'],
-  ['slt $d,$s,$t',   'R',  'Set $d=1 if $s < $t (signed)'],
-  ['sltu $d,$s,$t',  'R',  'Unsigned version of slt'],
-  ['slti $t,$s,imm', 'I',  'Set if less than immediate (signed)'],
-  ['lw $t,off($s)',  'I',  'Load word from memory'],
-  ['sw $t,off($s)',  'I',  'Store word to memory'],
-  ['lh $t,off($s)',  'I',  'Load halfword, sign-extend'],
-  ['lhu $t,off($s)', 'I',  'Load halfword, zero-extend'],
-  ['sh $t,off($s)',  'I',  'Store halfword'],
-  ['lb $t,off($s)',  'I',  'Load byte, sign-extend'],
-  ['lbu $t,off($s)', 'I',  'Load byte, zero-extend'],
-  ['sb $t,off($s)',  'I',  'Store byte'],
-  ['lui $t,imm',     'I',  'Load upper 16 bits of register'],
-  ['beq $s,$t,lbl',  'I',  'Branch if equal'],
-  ['bne $s,$t,lbl',  'I',  'Branch if not equal'],
-  ['blt $s,$t,lbl',  'I',  'Branch if less than (pseudo)'],
-  ['bgt $s,$t,lbl',  'I',  'Branch if greater than (pseudo)'],
-  ['ble $s,$t,lbl',  'I',  'Branch if ≤ (pseudo)'],
-  ['bge $s,$t,lbl',  'I',  'Branch if ≥ (pseudo)'],
-  ['beqz $s,lbl',    'I',  'Branch if $s == 0 (pseudo)'],
-  ['bnez $s,lbl',    'I',  'Branch if $s != 0 (pseudo)'],
-  ['j label',        'J',  'Unconditional jump'],
-  ['jal label',      'J',  'Jump and link; saves PC+4 to $ra'],
-  ['jr $s',          'R',  'Jump to address in register'],
-  ['jalr $s',        'R',  'Jump and link via register'],
-  ['li $t,imm',      'P',  'Load immediate (pseudo)'],
-  ['la $t,label',    'P',  'Load address (pseudo)'],
-  ['move $d,$s',     'P',  'Copy register (pseudo)'],
-  ['nop',            'P',  'No operation (pseudo)'],
-];
-
-const DIRECTIVES: [string, string][] = [
-  ['.data',        'Begin data segment'],
-  ['.text',        'Begin code segment'],
-  ['.globl label', 'Make label globally visible'],
-  ['.word n',      'Allocate one or more 32-bit words'],
-  ['.half n',      'Allocate one or more 16-bit halfwords'],
-  ['.byte n',      'Allocate one or more bytes'],
-  ['.ascii "s"',   'Store string (no null terminator)'],
-  ['.asciiz "s"',  'Store null-terminated string'],
-  ['.float n',     'Allocate a single-precision float'],
-  ['.double n',    'Allocate a double-precision float'],
-  ['.space n',     'Allocate n bytes of zero-filled space'],
-  ['.align n',     'Align next datum to 2ⁿ byte boundary'],
-];
+import { INSTRUCTIONS, SYSCALLS, REGISTERS, DIRECTIVES } from '../helpers/mipsSyntax';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -304,15 +206,15 @@ export default function DocsPage() {
   const q = search.trim().toLowerCase();
 
   const filteredInstructions = useMemo(() =>
-    q ? INSTRUCTIONS.filter(([syn, , desc]) => syn.toLowerCase().includes(q) || desc.toLowerCase().includes(q)) : INSTRUCTIONS,
+    q ? INSTRUCTIONS.filter(i => i.syntax.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q)) : INSTRUCTIONS,
     [q]);
 
   const filteredSyscalls = useMemo(() =>
-    q ? SYSCALLS.filter(([num, args, desc]) => num.includes(q) || args.toLowerCase().includes(q) || desc.toLowerCase().includes(q)) : SYSCALLS,
+    q ? SYSCALLS.filter(s => s.code.includes(q) || s.args.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q)) : SYSCALLS,
     [q]);
 
   const filteredDirectives = useMemo(() =>
-    q ? DIRECTIVES.filter(([dir, desc]) => dir.toLowerCase().includes(q) || desc.toLowerCase().includes(q)) : DIRECTIVES,
+    q ? DIRECTIVES.filter(d => d.directive.toLowerCase().includes(q) || d.desc.toLowerCase().includes(q)) : DIRECTIVES,
     [q]);
 
   const handleLogout = () => {
@@ -464,32 +366,32 @@ export default function DocsPage() {
 
           <Accordion title="Instructions" theme={theme} badge={`${filteredInstructions.length}`}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {filteredInstructions.map(([syn, type, desc]) => (
-                <div key={syn} className="docs-instr-row" style={{ borderBottom: `1px solid ${theme.border}22` }}>
-                  <span className="docs-instr-syn" style={{ color: theme.linkColor }}>{syn}</span>
+              {filteredInstructions.map(i => (
+                <div key={i.syntax} className="docs-instr-row" style={{ borderBottom: `1px solid ${theme.border}22` }}>
+                  <span className="docs-instr-syn" style={{ color: theme.linkColor }}>{i.syntax}</span>
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
-                    backgroundColor: `${TYPE_COLOR[type]}22`, color: TYPE_COLOR[type],
+                    backgroundColor: `${TYPE_COLOR[i.type]}22`, color: TYPE_COLOR[i.type],
                     minWidth: 20, textAlign: 'center', flexShrink: 0,
-                  }}>{type}</span>
-                  <span style={{ fontSize: 13, color: theme.subText }}>{desc}</span>
+                  }}>{i.type}</span>
+                  <span style={{ fontSize: 13, color: theme.subText }}>{i.desc}</span>
                 </div>
               ))}
             </div>
           </Accordion>
 
           <Accordion title="Syscalls" theme={theme} badge={`${filteredSyscalls.length}`}>
-            <MiniTable rows={filteredSyscalls} headers={['Code', 'Args / Return', 'Description']} theme={theme} />
+            <MiniTable rows={filteredSyscalls.map(s => [s.code, s.args, s.desc] as [string, string, string])} headers={['Code', 'Args / Return', 'Description']} theme={theme} />
           </Accordion>
 
           {!q && (
             <Accordion title="Registers" theme={theme}>
-              <MiniTable rows={REGISTERS} headers={['Name', 'Number', 'Convention']} theme={theme} />
+              <MiniTable rows={REGISTERS.map(r => [r.name, r.number, r.convention] as [string, string, string])} headers={['Name', 'Number', 'Convention']} theme={theme} />
             </Accordion>
           )}
 
           <Accordion title="Assembler directives" theme={theme} badge={`${filteredDirectives.length}`}>
-            <MiniTable rows={filteredDirectives.map(([d, desc]) => [d, desc] as [string, string])} headers={['Directive', 'Description']} theme={theme} />
+            <MiniTable rows={filteredDirectives.map(d => [d.directive, d.desc] as [string, string])} headers={['Directive', 'Description']} theme={theme} />
           </Accordion>
         </div>
       </div>
