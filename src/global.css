@@ -66,6 +66,17 @@ input, textarea {
   .skeleton { animation: none; }
 }
 
+@keyframes save-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.save-status-pulse {
+  animation: save-pulse 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-status-pulse { animation: none; }
+}
+
 /* MIPS code editor */
 .mips-editor-textarea {
   color: transparent !important;

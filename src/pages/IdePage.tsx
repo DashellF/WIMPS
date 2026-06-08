@@ -11,6 +11,8 @@ import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
+import { useAutosave } from '../hooks/useAutosave';
+import { SaveStatus } from '../components/SaveStatus';
 import type { InstrStats } from '../simulator/useMips';
 import { assemble, continueSim, feedInput, getInstructionStats, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
 
@@ -312,6 +314,60 @@ export default function IdePage() {
   const tabsRef = useRef(tabs);
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
 
+  const { status: saveStatus, lastSavedAt, scheduleSave, flushNow } = useAutosave({
+    tabsRef,
+    isLoggedIn,
+    setTabs,
+    setIsLoggedIn,
+    apiBase: API_BASE,
+  });
+
+  // Guest save state — mirrors the server autosave lifecycle for local storage
+  const [guestSaveStatus, setGuestSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const [guestSavedAt, setGuestSavedAt] = useState<number | null>(null);
+  const guestSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const guestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (guestSavedTimerRef.current !== null) clearTimeout(guestSavedTimerRef.current);
+    if (guestDebounceRef.current !== null) clearTimeout(guestDebounceRef.current);
+  }, []);
+
+  const markGuestSaved = useCallback(() => {
+    setGuestSaveStatus('saved');
+    setGuestSavedAt(Date.now());
+    if (guestSavedTimerRef.current !== null) clearTimeout(guestSavedTimerRef.current);
+    guestSavedTimerRef.current = setTimeout(() => {
+      setGuestSaveStatus('idle');
+      guestSavedTimerRef.current = null;
+    }, 2000);
+  }, []);
+
+  // Write all current open tabs into saved_files, preserving closed-but-saved files.
+  // Mirrors the server merge: closed files survive, open tabs are updated.
+  const guestFlushNow = useCallback(() => {
+    if (guestDebounceRef.current !== null) {
+      clearTimeout(guestDebounceRef.current);
+      guestDebounceRef.current = null;
+    }
+    const clean = tabsRef.current.map(t => ({ ...t, isDirty: false }));
+    const existing = readSavedFiles();
+    const openIds = new Set(clean.map(t => t.id));
+    const merged = [...existing.filter(f => !openIds.has(f.id)), ...clean];
+    writeSavedFiles(merged);
+    setTabs(prev => prev.map(t => ({ ...t, isDirty: false })));
+    markGuestSaved();
+  }, [markGuestSaved, setTabs]);
+
+  // Debounced guest save — call on every change, fires 1.5s after the last one
+  const guestScheduleSave = useCallback(() => {
+    if (guestDebounceRef.current !== null) clearTimeout(guestDebounceRef.current);
+    guestDebounceRef.current = setTimeout(() => {
+      guestDebounceRef.current = null;
+      guestFlushNow();
+    }, 1500);
+  }, [guestFlushNow]);
+
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code ?? '', [tabs, activeTabId]);
 
   const setActiveCode = useCallback((code: string) => {
@@ -349,7 +405,27 @@ export default function IdePage() {
   }, []);
 
   // Auto-persist to localStorage whenever tabs or active tab change
-  useEffect(() => { writeLocalState(tabs, activeTabId); }, [tabs, activeTabId]);
+  useEffect(() => {
+    writeLocalState(tabs, activeTabId);
+  }, [tabs, activeTabId]);
+
+  // Autosave whenever a dirty tab exists (server for logged-in, saved_files for guests)
+  useEffect(() => {
+    if (!tabs.some(t => t.isDirty)) return;
+    if (isLoggedIn) scheduleSave();
+    else guestScheduleSave();
+  }, [tabs, isLoggedIn, scheduleSave, guestScheduleSave]);
+
+  // Flush on tab hidden (user switches away / closes browser tab)
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState !== 'hidden') return;
+      if (isLoggedIn) flushNow();
+      else guestFlushNow();
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [isLoggedIn, flushNow, guestFlushNow]);
 
   const applyState = (state: ReturnType<typeof getState>) => {
     setRegisters(state.registers);
@@ -460,12 +536,7 @@ export default function IdePage() {
   };
 
   const handleSaveLocal = () => {
-    const clean = tabsRef.current.map(t => ({ ...t, isDirty: false }));
-    const existing = readSavedFiles();
-    const openIds = new Set(clean.map(t => t.id));
-    const merged = [...existing.filter(f => !openIds.has(f.id)), ...clean];
-    writeSavedFiles(merged);
-    setTabs(clean);
+    guestFlushNow();
     setOutput('Saved to browser.');
   };
 
@@ -501,10 +572,10 @@ export default function IdePage() {
       const metaOrCtrl = e.ctrlKey || e.metaKey;
       const inInput = target.tagName === 'INPUT' || target.tagName === 'SELECT';
 
-      // Ctrl/Cmd+S — save from anywhere (including editor)
+      // Ctrl/Cmd+S — immediate save from anywhere (including editor)
       if (metaOrCtrl && e.key === 's') {
         e.preventDefault();
-        if (isLoggedIn) handleSave();
+        if (isLoggedIn) flushNow();
         else handleSaveLocal();
         return;
       }
@@ -533,7 +604,7 @@ export default function IdePage() {
     return () => window.removeEventListener('keydown', handler);
   }, [isLoggedIn, canStepBack, isWaiting,
       handleAssemble, handleRun, handleContinue, handleStep, handleStepBack, handleReset,
-      handleSave, handleSaveLocal]);
+      flushNow, handleSaveLocal]);
 
   const handleDeleteTab = async (tab: CodeTab, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -565,6 +636,13 @@ export default function IdePage() {
   const closeTab = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (tabs.length === 1) return;
+    if (isLoggedIn) {
+      // Flush before removing so the tab's final content reaches the server
+      flushNow();
+    } else {
+      // Flush all open tabs (including the one being closed) before removing it
+      guestFlushNow();
+    }
     const idx = tabs.findIndex(t => t.id === id);
     const next = tabs[idx === 0 ? 1 : idx - 1];
     setTabs(prev => prev.filter(t => t.id !== id));
@@ -580,12 +658,10 @@ export default function IdePage() {
   const commitRename = () => {
     if (!editingTabId) return;
     const raw = editTabName.trim() || 'untitled.asm';
-    setTabs(prev => {
-      const otherTabNames = new Set(prev.filter(t => t.id !== editingTabId).map(t => t.name));
-      const allNames = new Set([...otherTabNames, ...closedFileNames]);
-      const name = uniquifyName(raw, allNames);
-      return prev.map(t => t.id === editingTabId ? { ...t, name } : t);
-    });
+    const otherTabNames = new Set(tabsRef.current.filter(t => t.id !== editingTabId).map(t => t.name));
+    const allNames = new Set([...otherTabNames, ...closedFileNames]);
+    const name = uniquifyName(raw, allNames);
+    setTabs(prev => prev.map(t => t.id === editingTabId ? { ...t, name, isDirty: true } : t));
     setEditingTabId(null);
   };
 
@@ -600,12 +676,20 @@ export default function IdePage() {
       reader.onload = () => {
         const text = reader.result as string;
         const id = String(Date.now());
-        setTabs(prev => {
-          const allNames = new Set([...prev.map(t => t.name), ...closedFileNames]);
-          const name = uniquifyName(file.name, allNames);
-          return [...prev, { id, name, code: text, isDirty: false }];
-        });
+        const allNames = new Set([...tabsRef.current.map(t => t.name), ...closedFileNames]);
+        const name = uniquifyName(file.name, allNames);
+        const newTab: CodeTab = { id, name, code: text, isDirty: true };
+        setTabs(prev => [...prev, newTab]);
         setActiveTabId(id);
+        if (!isLoggedIn) {
+          // tabsRef won't have newTab yet (setTabs is async), so upsert directly
+          const clean = { ...newTab, isDirty: false };
+          const existing = readSavedFiles();
+          writeSavedFiles(existing.some(f => f.id === clean.id)
+            ? existing.map(f => f.id === clean.id ? clean : f)
+            : [...existing, clean]);
+          markGuestSaved();
+        }
       };
       reader.readAsText(file);
     };
@@ -668,7 +752,7 @@ export default function IdePage() {
     { label: 'Step Back', symbol: '←',  onPress: handleStepBack, disabled: !canStepBack },
     { label: 'Step',      symbol: '→',  onPress: handleStep },
     { label: 'Reset',     symbol: '↺',  onPress: handleReset },
-    { label: 'Save', symbol: '💾', onPress: isLoggedIn ? handleSave : handleSaveLocal },
+    { label: 'Save', symbol: '💾', onPress: isLoggedIn ? () => { flushNow(); } : handleSaveLocal },
   ];
 
   const hDragHandle = (
@@ -842,6 +926,7 @@ export default function IdePage() {
 
           {/* Right controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <SaveStatus status={saveStatus} guestStatus={guestSaveStatus} lastSavedAt={isLoggedIn ? lastSavedAt : guestSavedAt} isLoggedIn={isLoggedIn} onRetry={() => flushNow()} />
             <ThemeSwitch />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
             <button
@@ -875,6 +960,7 @@ export default function IdePage() {
           }}>
             <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={22} /></Link>
             <div style={{ flex: 1 }} />
+            <SaveStatus status={saveStatus} guestStatus={guestSaveStatus} lastSavedAt={isLoggedIn ? lastSavedAt : guestSavedAt} isLoggedIn={isLoggedIn} onRetry={() => flushNow()} compact />
             <ThemeSwitch />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
             <button
